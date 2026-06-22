@@ -59,8 +59,8 @@
   .picking-item { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid #F0EDEA; }
   .picking-item:last-child { border-bottom: none; }
   .picking-item:nth-child(even) { background: #FAFAF8; }
-  .item-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #E0DCD8; flex-shrink: 0; }
-  .item-no-img { width: 60px; height: 60px; background: #F0EDEA; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #CCC; flex-shrink: 0; }
+  .item-thumb { width: 90px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid #E0DCD8; flex-shrink: 0; }
+  .item-no-img { width: 90px; height: 90px; background: #F0EDEA; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #CCC; flex-shrink: 0; }
   .item-info { flex: 1; }
   .item-name { font-weight: 700; color: #1A1A2E; font-size: 14px; margin-bottom: 4px; }
   .item-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #6B6B80; }
@@ -134,6 +134,8 @@
             <span style="font-size:24px">📷</span>
           </div>
           <div class="upload-hint">點擊或拖曳圖片上傳<br>
+            <div id="ai-status" style="display:none;margin-top:6px;font-size:12px;color:#E8A87C;">🔍 AI 辨識中…</div>
+            <div id="ai-result" style="display:none;margin-top:6px;font-size:12px;color:#2E7D32;"></div>
             <button class="remove-btn" id="remove-btn" style="display:none" onclick="removeImage()">✕ 移除圖片</button>
           </div>
         </div>
@@ -216,9 +218,47 @@
   function setImageFile(file) {
     currentImageFile = file;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       document.getElementById('upload-zone').innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
       document.getElementById('remove-btn').style.display = 'inline-block';
+      document.getElementById('ai-status').style.display = 'block';
+      document.getElementById('ai-result').style.display = 'none';
+      // Call Claude API to analyze
+      try {
+        const base64 = e.target.result.split(',')[1];
+        const mediaType = file.type;
+        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 300,
+            system: '你是代購訂單辨識助手。從社群媒體留言截圖中辨識：nickname（留言者暱稱）、size（尺寸如90/M/L，沒有填"-"）。只回傳JSON，不加任何說明：{"nickname":"...","size":"..."}',
+            messages: [{ role: 'user', content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+              { type: 'text', text: '請辨識留言者暱稱和尺寸。' }
+            ]}]
+          })
+        });
+        const data = await resp.json();
+        const text = (data.content||[]).map(i=>i.text||'').join('');
+        const clean = text.replace(/```json|```/g,'').trim();
+        const result = JSON.parse(clean);
+        if (result.nickname && result.nickname !== '-') {
+          document.getElementById('f-nickname').value = result.nickname;
+        }
+        if (result.size && result.size !== '-') {
+          document.getElementById('f-size').value = result.size;
+        }
+        document.getElementById('ai-status').style.display = 'none';
+        document.getElementById('ai-result').style.display = 'block';
+        document.getElementById('ai-result').textContent = `✓ 辨識完成：${result.nickname || '?'} / 尺寸 ${result.size || '未知'}`;
+      } catch(err) {
+        document.getElementById('ai-status').style.display = 'none';
+        document.getElementById('ai-result').style.display = 'block';
+        document.getElementById('ai-result').style.color = '#A0A0B8';
+        document.getElementById('ai-result').textContent = '辨識失敗，請手動填寫';
+      }
     };
     reader.readAsDataURL(file);
   }
@@ -227,6 +267,8 @@
     document.getElementById('upload-zone').innerHTML = '<span style="font-size:24px">📷</span>';
     document.getElementById('remove-btn').style.display = 'none';
     document.getElementById('file-input').value = '';
+    document.getElementById('ai-status').style.display = 'none';
+    document.getElementById('ai-result').style.display = 'none';
   }
 
   async function addOrder() {
