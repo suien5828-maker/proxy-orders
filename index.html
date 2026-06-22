@@ -92,12 +92,16 @@
   .shipping-footer-total { font-weight: 700; font-size: 18px; color: #1A1A2E; }
   .empty { text-align: center; color: #B0AAA4; font-size: 14px; padding: 48px 0; }
   .loading { text-align: center; color: #A0A0B8; font-size: 13px; padding: 32px 0; }
+  .print-header { display: none; }
   @media print {
     body { background: white; }
     .header, .tabs, .card, .btn-primary, .btn-secondary, .del-btn, #orders-tab, #picking-tab { display: none !important; }
     #shipping-tab { display: block !important; }
     .picking-top { display: none !important; }
     .main { padding: 0; }
+    .print-header { display: block; text-align: center; padding: 16px 0 20px; border-bottom: 3px solid #E8A87C; margin-bottom: 20px; }
+    .print-header h2 { font-size: 22px; font-weight: 700; color: #1A1A2E; margin-bottom: 4px; }
+    .print-header p { font-size: 12px; color: #6B6B80; }
     .shipping-card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; margin-bottom: 16px; }
     .shipping-card-header { background: #1A1A2E !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .shipping-footer { background: #FEF9F4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -108,8 +112,8 @@
 <div class="header">
   <div class="header-inner">
     <div class="header-eyebrow">代購管理</div>
-    <h1>訂單登記系統</h1>
-    <p>上傳商品圖片 → 填寫資料 → 即時同步給團隊</p>
+    <h1>CC 選物代購</h1>
+    <p>訂單登記系統 ── 上傳商品圖片 → 填寫資料 → 即時同步給團隊</p>
   </div>
 </div>
 <div class="tabs">
@@ -181,6 +185,10 @@
 
   <!-- 出貨單 -->
   <div id="shipping-tab" style="display:none">
+    <div class="print-header">
+      <h2>CC 選物代購</h2>
+      <p>出貨單</p>
+    </div>
     <div class="picking-top">
       <div><span class="table-title">出貨單</span><span id="shipping-count" style="margin-left:10px;font-size:13px;color:#6B6B80"></span></div>
       <button class="btn-secondary" onclick="printShipping()">🖨 列印勾選的出貨單</button>
@@ -233,10 +241,10 @@
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
             max_tokens: 300,
-            system: '你是代購訂單辨識助手。從社群媒體留言截圖中辨識：nickname（留言者暱稱）、size（尺寸如90/M/L，沒有填"-"）。只回傳JSON，不加任何說明：{"nickname":"...","size":"..."}',
+            system: '你是代購訂單辨識助手。這是一張社群媒體留言截圖，留言者的暱稱固定顯示在圖片左上角頭像的右邊。請只辨識該暱稱文字。只回傳JSON，不加任何說明：{"nickname":"..."}',
             messages: [{ role: 'user', content: [
               { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-              { type: 'text', text: '請辨識留言者暱稱和尺寸。' }
+              { type: 'text', text: '請辨識圖片左上角頭像旁邊的留言者暱稱。' }
             ]}]
           })
         });
@@ -247,12 +255,9 @@
         if (result.nickname && result.nickname !== '-') {
           document.getElementById('f-nickname').value = result.nickname;
         }
-        if (result.size && result.size !== '-') {
-          document.getElementById('f-size').value = result.size;
-        }
         document.getElementById('ai-status').style.display = 'none';
         document.getElementById('ai-result').style.display = 'block';
-        document.getElementById('ai-result').textContent = `✓ 辨識完成：${result.nickname || '?'} / 尺寸 ${result.size || '未知'}`;
+        document.getElementById('ai-result').textContent = `✓ 辨識完成：${result.nickname || '?'}`;
       } catch(err) {
         document.getElementById('ai-status').style.display = 'none';
         document.getElementById('ai-result').style.display = 'block';
