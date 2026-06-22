@@ -222,6 +222,7 @@ async function loadOrders() {
     if (!pickingData[o.nickname].items[o.id]) pickingData[o.nickname].items[o.id] = { price_jpy: '', rate: '' };
     if (o.price_jpy) pickingData[o.nickname].items[o.id].price_jpy = o.price_jpy;
     if (o.rate) pickingData[o.nickname].items[o.id].rate = o.rate;
+    if (o.price_twd) pickingData[o.nickname].items[o.id].price_twd = o.price_twd;
   });
   renderTable();
   renderPicking();
@@ -364,12 +365,13 @@ function getPickingData(nickname) {
 
 function getItemPickingData(nickname, id) {
   const pd = getPickingData(nickname);
-  if (!pd.items[id]) pd.items[id] = { price_jpy: '', rate: '' };
+  if (!pd.items[id]) pd.items[id] = { price_jpy: '', rate: '', price_twd: '' };
   return pd.items[id];
 }
 
 function calcItemTwd(nickname, id) {
   const d = getItemPickingData(nickname, id);
+  if (d.price_twd && parseFloat(d.price_twd) > 0) return parseFloat(d.price_twd);
   const jpy = parseFloat(d.price_jpy) || 0;
   const rate = parseFloat(d.rate) || 0;
   return jpy * rate;
@@ -415,6 +417,7 @@ async function savePicking(nickname) {
     await sb.from('orders').update({
       price_jpy: parseFloat(itemData.price_jpy) || 0,
       rate: parseFloat(itemData.rate) || 0,
+      price_twd: parseFloat(itemData.price_twd) || 0,
     }).eq('id', o.id);
   }
 
@@ -490,10 +493,16 @@ function renderPicking() {
               oninput="updateItemField('${esc(name)}', ${o.id}, 'rate', this.value)">
           </div>
           <div class="field-box">
-            <div class="field-lbl">換算台幣</div>
+            <div class="field-lbl">換算台幣（自動）</div>
             <div class="field-calc" id="twd-${o.id}">
               ${calcItemTwd(name, o.id) > 0 ? `NT$${Math.round(calcItemTwd(name, o.id)).toLocaleString()}` : '-'}
             </div>
+          </div>
+          <div class="field-box">
+            <div class="field-lbl">直接輸入台幣售價</div>
+            <input class="field-inp" type="number" placeholder="填了優先使用"
+              value="${getItemPickingData(name, o.id).price_twd}"
+              oninput="updateItemField('${esc(name)}', ${o.id}, 'price_twd', this.value)">
           </div>
         </div>
       </div>`).join('')}
