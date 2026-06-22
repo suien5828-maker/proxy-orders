@@ -249,9 +249,9 @@
     if (currentImageFile) {
       const ext = currentImageFile.name.split('.').pop();
       const fileName = `${Date.now()}.${ext}`;
-      const { error: uploadError } = await sb.storage.from('product-images').upload(fileName, currentImageFile);
+      const { error: uploadError } = await sb.storage.from('product-image').upload(fileName, currentImageFile);
       if (!uploadError) {
-        const { data: urlData } = sb.storage.from('product-images').getPublicUrl(fileName);
+        const { data: urlData } = sb.storage.from('product-image').getPublicUrl(fileName);
         image_url = urlData.publicUrl;
       }
     }
@@ -276,7 +276,9 @@
   }
 
   async function deleteOrder(id) {
-    if (!confirm('確定要刪除這筆訂單？')) return;
+    const pwd = prompt('請輸入刪除密碼：');
+    if (pwd !== '888') { alert('密碼錯誤！'); return; }
+    
     await sb.from('orders').delete().eq('id', id);
     loadOrders();
   }
