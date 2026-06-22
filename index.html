@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>代購訂單系統</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #F5F3EF; font-family: 'PingFang TC', 'Noto Sans TC', sans-serif; min-height: 100vh; }
+  .header { background: #1A1A2E; padding: 22px 28px; border-bottom: 3px solid #E8A87C; }
+  .header-inner { max-width: 860px; margin: 0 auto; }
+  .header-eyebrow { font-size: 10px; letter-spacing: 4px; color: #E8A87C; margin-bottom: 4px; }
+  .header h1 { color: #fff; font-size: 22px; font-weight: 700; }
+  .header p { color: #A0A0B8; font-size: 12px; margin-top: 4px; }
+  .tabs { background: #1A1A2E; border-bottom: 1px solid #2E2E45; }
+  .tabs-inner { max-width: 860px; margin: 0 auto; display: flex; }
+  .tab-btn { background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; padding: 12px 22px; font-size: 13px; font-weight: 600; color: #A0A0B8; font-family: inherit; transition: all 0.15s; }
+  .tab-btn.active { color: #E8A87C; border-bottom-color: #E8A87C; }
+  .main { max-width: 860px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 20px; }
+  .card { background: #fff; border-radius: 12px; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border: 1px solid #E8E4DF; }
+  .card-title { font-weight: 700; color: #1A1A2E; font-size: 15px; margin-bottom: 16px; }
+  .upload-zone { width: 90px; height: 90px; border: 2px dashed #C8C4BE; border-radius: 10px; cursor: pointer; background: #FAFAF8; display: flex; align-items: center; justify-content: center; overflow: hidden; transition: all 0.2s; flex-shrink: 0; }
+  .upload-zone:hover { border-color: #E8A87C; background: #FEF9F4; }
+  .upload-hint { font-size: 12px; color: #A0A0B8; padding-top: 6px; }
+  .remove-btn { color: #D64045; cursor: pointer; font-size: 12px; margin-top: 4px; display: inline-block; background: none; border: none; font-family: inherit; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-group { display: flex; flex-direction: column; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 12px; font-weight: 600; color: #6B6B80; letter-spacing: 0.5px; margin-bottom: 5px; }
+  input[type=text], input[type=number] { width: 100%; border: 1.5px solid #DDD8D0; border-radius: 8px; padding: 10px 12px; font-size: 14px; color: #1A1A2E; background: #FAFAF8; outline: none; font-family: inherit; }
+  input:focus { border-color: #E8A87C; }
+  .error { color: #D64045; font-size: 13px; margin-bottom: 10px; }
+  .success { color: #2E7D32; font-size: 13px; margin-bottom: 10px; }
+  .btn-primary { background: #1A1A2E; color: #E8A87C; border: none; border-radius: 8px; padding: 12px 28px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary { background: #1A1A2E; color: #E8A87C; border: none; border-radius: 7px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .table-title { font-weight: 700; color: #1A1A2E; font-size: 15px; }
+  .badge { background: #E8A87C; color: #1A1A2E; border-radius: 20px; padding: 2px 10px; font-size: 12px; font-weight: 700; margin-left: 10px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { background: #F5F3EF; }
+  th { padding: 9px 12px; text-align: left; color: #6B6B80; font-weight: 600; font-size: 11px; letter-spacing: 0.5px; border-bottom: 2px solid #E8E4DF; white-space: nowrap; }
+  td { padding: 8px 12px; border-bottom: 1px solid #F0EDEA; vertical-align: middle; }
+  tr:nth-child(even) td { background: #FAFAF8; }
+  .thumb { width: 52px; height: 52px; object-fit: cover; border-radius: 6px; border: 1px solid #E0DCD8; display: block; }
+  .no-img { width: 52px; height: 52px; background: #F0EDEA; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #CCC; }
+  .del-btn { background: transparent; border: none; color: #C0A0A0; cursor: pointer; font-size: 18px; line-height: 1; }
+  .table-note { margin-top: 10px; font-size: 11px; color: #B0A8A0; }
+  .picking-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .picking-cards { display: flex; flex-direction: column; gap: 14px; }
+  .picking-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border: 1px solid #E8E4DF; }
+  .picking-card-header { background: #1A1A2E; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: #E8A87C; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: #1A1A2E; flex-shrink: 0; }
+  .customer-name { color: #fff; font-weight: 700; font-size: 15px; margin-left: 10px; }
+  .total-qty { color: #E8A87C; font-size: 12px; font-weight: 600; }
+  .picking-item { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid #F0EDEA; }
+  .picking-item:last-child { border-bottom: none; }
+  .picking-item:nth-child(even) { background: #FAFAF8; }
+  .item-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #E0DCD8; flex-shrink: 0; }
+  .item-no-img { width: 60px; height: 60px; background: #F0EDEA; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #CCC; flex-shrink: 0; }
+  .item-info { flex: 1; }
+  .item-name { font-weight: 700; color: #1A1A2E; font-size: 14px; margin-bottom: 4px; }
+  .item-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #6B6B80; }
+  .item-meta b { color: #2C2C3E; }
+  .qty-badge { background: #F5F3EF; border: 1.5px solid #E8A87C; border-radius: 8px; padding: 6px 14px; text-align: center; flex-shrink: 0; }
+  .qty-label { font-size: 10px; color: #A0A0B8; margin-bottom: 1px; }
+  .qty-num { font-weight: 700; font-size: 18px; color: #1A1A2E; }
+  .empty { text-align: center; color: #B0AAA4; font-size: 14px; padding: 48px 0; }
+  .loading { text-align: center; color: #A0A0B8; font-size: 13px; padding: 32px 0; }
+  @media print {
+    body { background: white; }
+    .header, .tabs, .card, .btn-primary, .btn-secondary, .del-btn, #orders-tab { display: none !important; }
+    #picking-tab { display: block !important; }
+    .picking-top .btn-secondary { display: none !important; }
+    .main { padding: 0; }
+    .picking-card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; margin-bottom: 14px; }
+    .picking-card-header { background: #1A1A2E !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="header-eyebrow">代購管理</div>
+    <h1>訂單登記系統</h1>
+    <p>上傳商品圖片 → 填寫資料 → 即時同步給團隊</p>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tabs-inner">
+    <button class="tab-btn active" onclick="switchTab('orders')">📋 訂單列表</button>
+    <button class="tab-btn" onclick="switchTab('picking')">📦 揀貨單</button>
+  </div>
+</div>
+
+<div class="main">
+  <div id="orders-tab">
+    <div class="card">
+      <div class="card-title">新增訂單</div>
+      <div style="margin-bottom:16px">
+        <label>商品圖片</label>
+        <div style="display:flex;gap:14px;align-items:flex-start;margin-top:5px">
+          <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()"
+            ondragover="event.preventDefault();this.style.borderColor='#E8A87C'"
+            ondragleave="this.style.borderColor='#C8C4BE'"
+            ondrop="handleDrop(event)">
+            <span style="font-size:24px">📷</span>
+          </div>
+          <div class="upload-hint">
+            點擊或拖曳圖片上傳<br>
+            <button class="remove-btn" id="remove-btn" style="display:none" onclick="removeImage()">✕ 移除圖片</button>
+          </div>
+        </div>
+        <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileInput(this)">
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>暱稱 *</label>
+          <input type="text" id="f-nickname" placeholder="客人暱稱">
+        </div>
+        <div class="form-group">
+          <label>商品 *</label>
+          <input type="text" id="f-item" placeholder="商品名稱">
+        </div>
+        <div class="form-group">
+          <label>尺寸</label>
+          <input type="text" id="f-size" placeholder="如：90、M、100cm">
+        </div>
+        <div class="form-group">
+          <label>數量</label>
+          <input type="number" id="f-quantity" placeholder="如：1、2" min="1">
+        </div>
+        <div class="form-group full">
+          <label>廠商</label>
+          <input type="text" id="f-vendor" placeholder="廠商名稱">
+        </div>
+      </div>
+      <div class="error" id="form-error" style="display:none"></div>
+      <div class="success" id="form-success" style="display:none"></div>
+      <button class="btn-primary" id="add-btn" onclick="addOrder()">+ 加入訂單</button>
+    </div>
+
+    <div class="loading" id="loading-orders">載入中…</div>
+
+    <div class="card" id="table-card" style="display:none">
+      <div class="table-header">
+        <div>
+          <span class="table-title">所有訂單</span>
+          <span class="badge" id="order-count">0 筆</span>
+        </div>
+        <button class="btn-secondary" onclick="downloadCSV()">↓ 下載 CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>圖片</th><th>暱稱</th><th>商品</th><th>尺寸</th><th>數量</th><th>廠商</th><th></th></tr>
+          </thead>
+          <tbody id="order-tbody"></tbody>
+        </table>
+      </div>
+      <div class="table-note">* 資料即時同步，所有人都能看到最新訂單</div>
+    </div>
+  </div>
+
+  <div id="picking-tab" style="display:none">
+    <div class="picking-top">
+      <div>
+        <span class="table-title">揀貨單</span>
+        <span id="customer-count" style="margin-left:10px;font-size:13px;color:#6B6B80"></span>
+      </div>
+      <button class="btn-secondary" onclick="window.print()">🖨 列印</button>
+    </div>
+    <div id="picking-empty" class="empty" style="display:none">尚無訂單</div>
+    <div class="loading" id="loading-picking">載入中…</div>
+    <div class="picking-cards" id="picking-cards"></div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://zwabpiysvlqvqunauwyj.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3YWJwaXlzdmxxdnF1bmF1d3lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMTA1MzgsImV4cCI6MjA5NzY4NjUzOH0.-jx1ikazqqKRta-8lEoifeKR9bVVm_E00m4e17q_6z8';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let orders = [];
+  let currentImageFile = null;
+
+  async function loadOrders() {
+    const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending: false });
+    document.getElementById('loading-orders').style.display = 'none';
+    document.getElementById('loading-picking').style.display = 'none';
+    if (error) { console.error(error); return; }
+    orders = data || [];
+    renderTable();
+    renderPicking();
+  }
+
+  function handleFileInput(input) {
+    if (input.files && input.files[0]) setImageFile(input.files[0]);
+  }
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').style.borderColor = '#C8C4BE';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) setImageFile(file);
+  }
+  function setImageFile(file) {
+    currentImageFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      document.getElementById('upload-zone').innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+      document.getElementById('remove-btn').style.display = 'inline-block';
+    };
+    reader.readAsDataURL(file);
+  }
+  function removeImage() {
+    currentImageFile = null;
+    document.getElementById('upload-zone').innerHTML = '<span style="font-size:24px">📷</span>';
+    document.getElementById('remove-btn').style.display = 'none';
+    document.getElementById('file-input').value = '';
+  }
+
+  async function addOrder() {
+    const nickname = document.getElementById('f-nickname').value.trim();
+    const item = document.getElementById('f-item').value.trim();
+    const size = document.getElementById('f-size').value.trim();
+    const quantity = document.getElementById('f-quantity').value.trim();
+    const vendor = document.getElementById('f-vendor').value.trim();
+    const errEl = document.getElementById('form-error');
+    const successEl = document.getElementById('form-success');
+    const btn = document.getElementById('add-btn');
+
+    errEl.style.display = 'none';
+    successEl.style.display = 'none';
+
+    if (!nickname || !item) {
+      errEl.textContent = '請至少填寫暱稱和商品';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '儲存中…';
+
+    let image_url = null;
+    if (currentImageFile) {
+      const ext = currentImageFile.name.split('.').pop();
+      const fileName = `${Date.now()}.${ext}`;
+      const { error: uploadError } = await sb.storage.from('product-images').upload(fileName, currentImageFile);
+      if (!uploadError) {
+        const { data: urlData } = sb.storage.from('product-images').getPublicUrl(fileName);
+        image_url = urlData.publicUrl;
+      }
+    }
+
+    const { error } = await sb.from('orders').insert([{ nickname, item, size, quantity, vendor, image_url }]);
+
+    btn.disabled = false;
+    btn.textContent = '+ 加入訂單';
+
+    if (error) {
+      errEl.textContent = '儲存失敗：' + error.message;
+      errEl.style.display = 'block';
+      return;
+    }
+
+    successEl.textContent = '✓ 訂單已儲存！';
+    successEl.style.display = 'block';
+    setTimeout(() => successEl.style.display = 'none', 3000);
+    ['f-nickname','f-item','f-size','f-quantity','f-vendor'].forEach(id => document.getElementById(id).value = '');
+    removeImage();
+    loadOrders();
+  }
+
+  async function deleteOrder(id) {
+    if (!confirm('確定要刪除這筆訂單？')) return;
+    await sb.from('orders').delete().eq('id', id);
+    loadOrders();
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('order-tbody');
+    document.getElementById('table-card').style.display = orders.length ? 'block' : 'none';
+    document.getElementById('order-count').textContent = orders.length + ' 筆';
+    tbody.innerHTML = orders.map(o => `
+      <tr>
+        <td>${o.image_url ? `<img class="thumb" src="${esc(o.image_url)}">` : '<div class="no-img">無圖</div>'}</td>
+        <td style="font-weight:600;color:#1A1A2E">${esc(o.nickname)}</td>
+        <td>${esc(o.item)}</td>
+        <td>${esc(o.size)||'-'}</td>
+        <td style="text-align:center">${esc(o.quantity)||'-'}</td>
+        <td style="color:#6B6B80">${esc(o.vendor)||'-'}</td>
+        <td><button class="del-btn" onclick="deleteOrder(${o.id})">×</button></td>
+      </tr>
+    `).join('');
+  }
+
+  function renderPicking() {
+    const groups = {};
+    orders.forEach(o => {
+      if (!groups[o.nickname]) groups[o.nickname] = [];
+      groups[o.nickname].push(o);
+    });
+    const names = Object.keys(groups);
+    document.getElementById('picking-empty').style.display = names.length ? 'none' : 'block';
+    document.getElementById('customer-count').textContent = names.length ? `共 ${names.length} 位客人` : '';
+    document.getElementById('picking-cards').innerHTML = names.map(name => {
+      const items = groups[name];
+      const totalQty = items.reduce((s, o) => s + (parseInt(o.quantity) || 1), 0);
+      return `
+        <div class="picking-card">
+          <div class="picking-card-header">
+            <div style="display:flex;align-items:center">
+              <div class="avatar">${esc(name.charAt(0).toUpperCase())}</div>
+              <span class="customer-name">${esc(name)}</span>
+            </div>
+            <span class="total-qty">共 ${totalQty} 件</span>
+          </div>
+          ${items.map(o => `
+            <div class="picking-item">
+              ${o.image_url ? `<img class="item-thumb" src="${esc(o.image_url)}">` : '<div class="item-no-img">無圖</div>'}
+              <div class="item-info">
+                <div class="item-name">${esc(o.item)}</div>
+                <div class="item-meta">
+                  ${o.size ? `<span>尺寸：<b>${esc(o.size)}</b></span>` : ''}
+                  ${o.vendor ? `<span>廠商：<b>${esc(o.vendor)}</b></span>` : ''}
+                </div>
+              </div>
+              <div class="qty-badge">
+                <div class="qty-label">數量</div>
+                <div class="qty-num">${esc(o.quantity)||1}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }).join('');
+  }
+
+  function downloadCSV() {
+    const header = '暱稱,商品,尺寸,數量,廠商';
+    const rows = orders.map(o =>
+      [o.nickname, o.item, o.size, o.quantity, o.vendor]
+        .map(v => `"${(v||'').replace(/"/g,'""')}"`)
+        .join(',')
+    );
+    const csv = '\uFEFF' + [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '代購訂單.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function switchTab(tab) {
+    document.getElementById('orders-tab').style.display = tab === 'orders' ? 'block' : 'none';
+    document.getElementById('picking-tab').style.display = tab === 'picking' ? 'block' : 'none';
+    document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', (i === 0 && tab === 'orders') || (i === 1 && tab === 'picking'));
+    });
+  }
+
+  function esc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  loadOrders();
+
+  sb.channel('orders-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => loadOrders())
+    .subscribe();
+</script>
+</body>
+</html>
