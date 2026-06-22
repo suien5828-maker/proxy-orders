@@ -181,7 +181,7 @@
   <div id="shipping-tab" style="display:none">
     <div class="picking-top">
       <div><span class="table-title">出貨單</span><span id="shipping-count" style="margin-left:10px;font-size:13px;color:#6B6B80"></span></div>
-      <button class="btn-secondary" onclick="window.print()">🖨 列印</button>
+      <button class="btn-secondary" onclick="printShipping()">🖨 列印勾選的出貨單</button>
     </div>
     <div id="shipping-empty" class="empty" style="display:none">尚無訂單</div>
     <div class="shipping-cards" id="shipping-cards"></div>
@@ -329,11 +329,15 @@
     document.getElementById('shipping-cards').innerHTML = names.map(name => {
       const items = groups[name];
       const totalQty = items.reduce((s, o) => s + (parseInt(o.quantity) || 1), 0);
-      return `<div class="shipping-card">
+      return `<div class="shipping-card" data-name="${esc(name)}">
         <div class="shipping-card-header">
           <div class="shipping-customer">
-            <div class="avatar">${esc(name.charAt(0).toUpperCase())}</div>
-            <span class="shipping-name">${esc(name)}</span>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+              <input type="checkbox" class="ship-check" data-name="${esc(name)}"
+                style="width:20px;height:20px;cursor:pointer;accent-color:#E8A87C;">
+              <div class="avatar">${esc(name.charAt(0).toUpperCase())}</div>
+              <span class="shipping-name">${esc(name)}</span>
+            </label>
           </div>
         </div>
         <div class="shipping-items">
@@ -358,6 +362,18 @@
         </div>
       </div>`;
     }).join('');
+  }
+
+  function printShipping() {
+    const checked = [...document.querySelectorAll('.ship-check:checked')].map(cb => cb.dataset.name);
+    if (checked.length === 0) { alert('請先勾選要列印的客人！'); return; }
+    // 隱藏未勾選的卡片，列印後還原
+    const allCards = document.querySelectorAll('.shipping-card');
+    allCards.forEach(card => {
+      if (!checked.includes(card.dataset.name)) card.style.display = 'none';
+    });
+    window.print();
+    allCards.forEach(card => card.style.display = '');
   }
 
   function downloadCSV() {
