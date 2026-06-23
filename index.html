@@ -248,12 +248,35 @@ let showArchived = false;
 let pickingData = {};
 
 function updateTripUI() {
-  const tripInput = document.getElementById('trip-input');
   const archiveBtn = document.getElementById('archive-btn');
-  const tripBar = document.getElementById('trip-bar');
-  if (tripInput) tripInput.value = currentTrip;
+  const label = document.getElementById('current-trip-label');
+  const sel = document.getElementById('trip-select');
   if (archiveBtn) archiveBtn.textContent = showArchived ? '📋 回到本團' : '📦 查看歷史';
-  if (tripBar) tripBar.style.background = showArchived ? '#FFF3E0' : '#fff';
+  if (label) label.textContent = showArchived ? '查看歷史中' : currentTrip;
+
+  const allTrips = [...new Set((window._allOrders||[]).map(o => o.trip || '第1團'))];
+  allTrips.sort((a,b) => {
+    const na = parseInt(a.replace(/[^0-9]/g,''))||0;
+    const nb = parseInt(b.replace(/[^0-9]/g,''))||0;
+    return nb - na;
+  });
+  if (sel) {
+    sel.innerHTML = '<option value="">-- 選擇已有團次 --</option>' +
+      allTrips.map(t => `<option value="${t}" ${t===currentTrip?'selected':''}>${t}</option>`).join('');
+  }
+}
+
+function onTripSelectChange() {
+  const val = document.getElementById('trip-select').value;
+  if (val) document.getElementById('trip-input').value = val;
+}
+
+function applyTrip() {
+  const val = document.getElementById('trip-input').value.trim();
+  if (!val) { alert('請輸入或選擇團次名稱'); return; }
+  currentTrip = val;
+  showArchived = false;
+  loadOrders();
 }
 
 
