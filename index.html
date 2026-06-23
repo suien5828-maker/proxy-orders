@@ -313,7 +313,7 @@ function generateOrderNo() {
 }
 
 async function loadOrders() {
-  const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending: false });
+  const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending: true });
   document.getElementById('loading-orders').style.display = 'none';
   if (error) { console.error(error); return; }
   window._allOrders = data || [];
@@ -592,8 +592,32 @@ function rerenderGroupTotal(nickname) {
 function renderPicking() {
   const groups = groupByNickname();
   const names = Object.keys(groups);
-  document.getElementById('picking-empty').style.display = names.length ? 'none' : 'block';
   document.getElementById('picking-count').textContent = names.length ? `共 ${names.length} 位客人` : '';
+
+  // Update select options
+  const sel = document.getElementById('picking-customer-select');
+  const current = sel ? sel.value : '';
+  if (sel) {
+    sel.innerHTML = '<option value="">-- 選擇客人 --</option>' +
+      names.map(n => `<option value="${esc(n)}" ${n===current?'selected':''}>${esc(n)}</option>`).join('');
+  }
+
+  renderPickingForCustomer();
+}
+
+function renderPickingForCustomer() {
+  const sel = document.getElementById('picking-customer-select');
+  const selected = sel ? sel.value : '';
+  const groups = groupByNickname();
+  const names = selected ? [selected] : [];
+
+  document.getElementById('picking-empty').style.display = (!selected) ? 'block' : 'none';
+  if (!selected) {
+    document.getElementById('picking-empty').textContent = '請從上方選擇客人';
+    document.getElementById('picking-cards').innerHTML = '';
+    return;
+  }
+
   document.getElementById('picking-cards').innerHTML = names.map(name => {
     const items = groups[name];
     const firstOrder = items[0];
