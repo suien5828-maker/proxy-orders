@@ -153,36 +153,35 @@ tr:nth-child(even) td { background: #FAFAF8; }
       <button class="btn-primary" id="add-btn" onclick="addOrder()">+ 加入訂單</button>
     </div>
 
-    <div style="background:#fff;border-radius:12px;padding:18px;border:1px solid #E8E4DF;display:flex;flex-direction:column;gap:14px">
-      <!-- 目前團次 -->
+    <div style="background:#fff;border-radius:12px;padding:18px;border:1px solid #E8E4DF;display:flex;flex-direction:column;gap:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:13px;font-weight:600;color:#1A1A2E">目前團次：</span>
           <span id="current-trip-label" style="background:#E8A87C;color:#1A1A2E;border-radius:6px;padding:4px 12px;font-size:13px;font-weight:700">第1團</span>
         </div>
         <div style="display:flex;gap:8px">
-          <button onclick="toggleArchived()" id="archive-btn"
-            style="background:transparent;border:1.5px solid #DDD8D0;border-radius:6px;padding:7px 14px;font-size:12px;color:#6B6B80;cursor:pointer;font-family:inherit">
-            📦 查看歷史
-          </button>
+          <button onclick="toggleArchived()" id="archive-btn" style="background:transparent;border:1.5px solid #DDD8D0;border-radius:6px;padding:7px 14px;font-size:12px;color:#6B6B80;cursor:pointer;font-family:inherit">📦 查看歷史</button>
           <button onclick="closeTrip()" style="background:#D64045;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🔒 結團</button>
         </div>
       </div>
-      <!-- 切換/新增團次 -->
       <div style="border-top:1px solid #F0EDEA;padding-top:12px">
-        <div style="font-size:11px;font-weight:600;color:#6B6B80;margin-bottom:8px;letter-spacing:0.5px">切換 / 新增團次</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <select id="trip-select" onchange="onTripSelectChange()"
-            style="border:1.5px solid #DDD8D0;border-radius:6px;padding:7px 10px;font-size:13px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit;flex:1;min-width:120px">
+        <div style="font-size:11px;font-weight:600;color:#6B6B80;margin-bottom:8px">切換團次</div>
+        <div style="display:flex;gap:8px">
+          <select id="trip-select" style="flex:1;border:1.5px solid #DDD8D0;border-radius:6px;padding:8px 10px;font-size:13px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
+            <option value="CC六月連線/選物訂單">CC六月連線/選物訂單</option>
           </select>
-          <input type="text" id="trip-input" placeholder="輸入新團次名稱"
-            style="border:1.5px solid #DDD8D0;border-radius:6px;padding:7px 10px;font-size:13px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit;flex:1;min-width:120px">
-          <button onclick="applyTrip()" style="background:#1A1A2E;color:#E8A87C;border:none;border-radius:6px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">✓ 套用</button>
+          <button onclick="switchTrip()" style="background:#1A1A2E;color:#E8A87C;border:none;border-radius:6px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">切換</button>
         </div>
-        <div style="font-size:11px;color:#A0A0B8;margin-top:6px">下拉選已有團次，或在輸入框打新名稱再按套用</div>
+      </div>
+      <div style="border-top:1px solid #F0EDEA;padding-top:12px">
+        <div style="font-size:11px;font-weight:600;color:#6B6B80;margin-bottom:8px">新增團次</div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="new-trip-input" placeholder="如：2026年7月日本團" style="flex:1;border:1.5px solid #DDD8D0;border-radius:6px;padding:8px 10px;font-size:13px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
+          <button onclick="addTrip()" style="background:#1A1A2E;color:#E8A87C;border:none;border-radius:6px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">＋ 新增</button>
+        </div>
       </div>
     </div>
-    <div class="loading" id="loading-orders">載入中…</div>
+        <div class="loading" id="loading-orders">載入中…</div>
     <div class="card" id="table-card" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <div><span style="font-weight:700;color:#1A1A2E;font-size:15px">所有訂單</span><span class="badge" id="order-count">0 筆</span></div>
@@ -242,10 +241,13 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let orders = [];
 let currentImageFile = null;
-let currentTrip = '第1團';
+let currentTrip = 'CC六月連線/選物訂單';
 let showArchived = false;
 // Store picking data locally (rate, price_jpy, shipping, extra, discount, note per order group)
 let pickingData = {};
+
+// Store known trips locally
+let knownTrips = ['CC六月連線/選物訂單'];
 
 function updateTripUI() {
   const archiveBtn = document.getElementById('archive-btn');
@@ -254,29 +256,35 @@ function updateTripUI() {
   if (archiveBtn) archiveBtn.textContent = showArchived ? '📋 回到本團' : '📦 查看歷史';
   if (label) label.textContent = showArchived ? '查看歷史中' : currentTrip;
 
-  const allTrips = [...new Set((window._allOrders||[]).map(o => o.trip || '第1團'))];
-  allTrips.sort((a,b) => {
-    const na = parseInt(a.replace(/[^0-9]/g,''))||0;
-    const nb = parseInt(b.replace(/[^0-9]/g,''))||0;
-    return nb - na;
-  });
+  // Update trips from all orders
+  const fromDB = [...new Set((window._allOrders||[]).map(o => o.trip || '第1團'))];
+  fromDB.forEach(t => { if (!knownTrips.includes(t)) knownTrips.push(t); });
+
   if (sel) {
-    sel.innerHTML = '<option value="">-- 選擇已有團次 --</option>' +
-      allTrips.map(t => `<option value="${t}" ${t===currentTrip?'selected':''}>${t}</option>`).join('');
+    sel.innerHTML = knownTrips.map(t =>
+      `<option value="${t}" ${t===currentTrip?'selected':''}>${t}</option>`
+    ).join('');
   }
 }
 
-function onTripSelectChange() {
+function switchTrip() {
   const val = document.getElementById('trip-select').value;
-  if (val) document.getElementById('trip-input').value = val;
-}
-
-function applyTrip() {
-  const val = document.getElementById('trip-input').value.trim();
-  if (!val) { alert('請輸入或選擇團次名稱'); return; }
+  if (!val) return;
   currentTrip = val;
   showArchived = false;
   loadOrders();
+}
+
+function addTrip() {
+  const val = document.getElementById('new-trip-input').value.trim();
+  if (!val) { alert('請輸入新團次名稱'); return; }
+  if (knownTrips.includes(val)) { alert('這個團次已經存在！'); return; }
+  knownTrips.push(val);
+  currentTrip = val;
+  showArchived = false;
+  document.getElementById('new-trip-input').value = '';
+  loadOrders();
+  alert(`已新增並切換到「${val}」！`);
 }
 
 
