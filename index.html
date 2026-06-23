@@ -115,6 +115,7 @@ tr:nth-child(even) td { background: #FAFAF8; }
     <button class="tab-btn active" onclick="switchTab('orders')">📋 訂單列表</button>
     <button class="tab-btn" onclick="switchTab('picking')">📋 訂單整理</button>
     <button class="tab-btn" onclick="switchTab('shipping')">🚚 出貨單</button>
+    <button class="tab-btn" onclick="switchTab('customer')">👤 客人查詢</button>
   </div>
 </div>
 
@@ -188,6 +189,20 @@ tr:nth-child(even) td { background: #FAFAF8; }
     </div>
     <div id="shipping-empty" class="empty" style="display:none">尚無訂單</div>
     <div class="shipping-cards" id="shipping-cards"></div>
+  </div>
+  <!-- 客人查詢 -->
+  <div id="customer-tab" style="display:none">
+    <div class="card">
+      <div class="card-title">客人查詢</div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:#6B6B80;margin-bottom:5px;display:block">選擇客人</label>
+        <select id="customer-select" onchange="showCustomerOrders()"
+          style="width:100%;border:1.5px solid #DDD8D0;border-radius:8px;padding:10px 12px;font-size:14px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
+          <option value="">-- 選擇客人 --</option>
+        </select>
+      </div>
+    </div>
+    <div id="customer-orders" style="display:flex;flex-direction:column;gap:14px;margin-top:4px"></div>
   </div>
 </div>
 
@@ -428,6 +443,8 @@ function rerenderItemTwd(nickname, id) {
   if (el) el.textContent = twd > 0 ? `NT$${Math.round(twd).toLocaleString()}` : '-';
 }
 
+let pendingEdits = {};
+
 async function savePicking(nickname) {
   const groups = groupByNickname();
   const items = groups[nickname] || [];
@@ -436,29 +453,30 @@ async function savePicking(nickname) {
   const msg = document.getElementById(`save-msg-${CSS.escape(nickname)}`);
   if (btn) { btn.disabled = true; btn.textContent = '儲存中…'; }
 
-  // Save per-item fields (price_jpy, rate)
   for (const o of items) {
     const itemData = getItemPickingData(nickname, o.id);
+    const edits = pendingEdits[o.id] || {};
     await sb.from('orders').update({
       price_jpy: parseFloat(itemData.price_jpy) || 0,
       rate: parseFloat(itemData.rate) || 0,
       price_twd: parseFloat(itemData.price_twd) || 0,
       status: itemData.status || 'pending',
-    }).eq('id', o.id);
-  }
-
-  // Save group fields to all orders of this nickname
-  for (const o of items) {
-    await sb.from('orders').update({
       shipping: parseFloat(pd.shipping) || 0,
       extra: parseFloat(pd.extra) || 0,
       discount: parseFloat(pd.discount) || 0,
       note: pd.note || '',
+      ...(edits.item ? { item: edits.item } : {}),
+      ...(edits.size !== undefined ? { size: edits.size } : {}),
+      ...(edits.quantity ? { quantity: edits.quantity } : {}),
     }).eq('id', o.id);
   }
 
+  // Clear pending edits for this group
+  items.forEach(o => delete pendingEdits[o.id]);
+
   if (btn) { btn.disabled = false; btn.textContent = '💾 儲存'; }
   if (msg) { msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 3000); }
+  loadOrders();
 }
 
 function rerenderGroupTotal(nickname) {
@@ -665,13 +683,79 @@ function downloadCSV() {
 }
 
 function switchTab(tab) {
-  ['orders','picking','shipping'].forEach(t => {
+  ['orders','picking','shipping','customer'].forEach(t => {
     document.getElementById(t+'-tab').style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', ['orders','picking','shipping'][i] === tab);
+    btn.classList.toggle('active', ['orders','picking','shipping','customer'][i] === tab);
   });
   if (tab === 'shipping') renderShipping();
+  if (tab === 'customer') renderCustomerSelect();
+}
+
+function renderCustomerSelect() {
+  const groups = groupByNickname();
+  const names = Object.keys(groups);
+  const sel = document.getElementById('customer-select');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">-- 選擇客人 --</option>' +
+    names.map(n => `<option value="${esc(n)}" ${n===current?'selected':''}}>${esc(n)}</option>`).join('');
+  if (current) showCustomerOrders();
+}
+
+function showCustomerOrders() {
+  const name = document.getElementById('customer-select').value;
+  const container = document.getElementById('customer-orders');
+  if (!name) { container.innerHTML = ''; return; }
+
+  const groups = groupByNickname();
+  const items = groups[name] || [];
+  const pd = getPickingData(name);
+  const firstOrder = items[0];
+  const total = calcGroupTotal(name, items);
+  const itemsTwd = items.reduce((s, o) => {
+    const d = getItemPickingData(name, o.id);
+    if (d.status === 'outofstock') return s;
+    return s + calcItemTwd(name, o.id) * (parseInt(o.quantity)||1);
+  }, 0);
+
+  container.innerHTML = `
+    <div style="background:#1A1A2E;border-radius:12px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="color:#fff;font-weight:700;font-size:17px">${esc(name)}</div>
+        <div style="color:#A0A0B8;font-size:12px;margin-top:3px">${formatDate(firstOrder?.created_at)}　共 ${items.reduce((s,o)=>s+(parseInt(o.quantity)||1),0)} 件</div>
+      </div>
+      <div style="color:#E8A87C;font-weight:700;font-size:16px">${total > 0 ? `NT$${Math.round(total).toLocaleString()}` : '待確認'}</div>
+    </div>
+    ${items.map((o, i) => {
+      const d = getItemPickingData(name, o.id);
+      const s = getStatusOptP1(d.status);
+      const twd = calcItemTwd(name, o.id);
+      return `<div style="background:#fff;border-radius:12px;padding:16px;border:1px solid #E8E4DF;display:flex;gap:14px;align-items:center">
+        ${o.image_url ? `<img src="${esc(o.image_url)}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0">` : '<div style="width:72px;height:72px;background:#F0EDEA;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#CCC;flex-shrink:0">無圖</div>'}
+        <div style="flex:1">
+          <div style="font-weight:700;color:${d.status==='outofstock'?'#D64045':'#1A1A2E'};font-size:15px;margin-bottom:4px">${esc(o.item)}${d.status==='outofstock'?' （斷貨）':''}</div>
+          <div style="font-size:13px;color:#6B6B80">
+            ${o.size?`${esc(o.size)}　`:''}數量：${o.quantity||1}${o.vendor?`　廠商：${esc(o.vendor)}`:''}
+          </div>
+          <span style="display:inline-block;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;background:${s.bg};color:${s.color};margin-top:4px">${s.label}</span>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          ${d.status==='outofstock' ? '<div style="color:#D64045;font-size:13px;font-weight:600">不計費</div>' : twd > 0 ? `<div style="font-weight:700;color:#1A1A2E;font-size:15px">NT$${Math.round(twd*(parseInt(o.quantity)||1)).toLocaleString()}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('')}
+    <div style="background:#FEF9F4;border-radius:12px;padding:16px;border:1px solid #E8A87C">
+      ${itemsTwd>0?`<div style="display:flex;justify-content:space-between;font-size:13px;color:#6B6B80;margin-bottom:5px"><span>商品合計</span><span>NT$${Math.round(itemsTwd).toLocaleString()}</span></div>`:''}
+      ${Number(pd.shipping)>0?`<div style="display:flex;justify-content:space-between;font-size:13px;color:#6B6B80;margin-bottom:5px"><span>運費</span><span>NT$${Number(pd.shipping).toLocaleString()}</span></div>`:''}
+      ${Number(pd.extra)>0?`<div style="display:flex;justify-content:space-between;font-size:13px;color:#6B6B80;margin-bottom:5px"><span>其他加價</span><span>NT$${Number(pd.extra).toLocaleString()}</span></div>`:''}
+      ${Number(pd.discount)>0?`<div style="display:flex;justify-content:space-between;font-size:13px;color:#2E7D32;margin-bottom:5px"><span>優惠折扣</span><span>-NT$${Number(pd.discount).toLocaleString()}</span></div>`:''}
+      ${pd.note?`<div style="display:flex;justify-content:space-between;font-size:13px;color:#6B6B80;margin-bottom:5px"><span>備註</span><span>${esc(pd.note)}</span></div>`:''}
+      <div style="display:flex;justify-content:space-between;font-weight:700;font-size:17px;color:#1A1A2E;border-top:1px solid #E8A87C;padding-top:10px;margin-top:6px">
+        <span>應付總金額</span>
+        <span style="color:#E8A87C">${total > 0 ? `NT$${Math.round(total).toLocaleString()}` : '待確認'}</span>
+      </div>
+    </div>`;
 }
 
 function esc(str) {
