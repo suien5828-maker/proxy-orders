@@ -524,6 +524,28 @@ function renderPicking() {
             ${(() => { const s = getStatusOptP1(getItemPickingData(name, o.id).status); return `<span style="display:inline-block;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;background:${s.bg};color:${s.color};margin-top:4px">${s.label}</span>`; })()}
           </div>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;padding:10px;background:#F9F7F5;border-radius:8px">
+          <div class="field-box" style="grid-column:1/-1">
+            <div class="field-lbl">商品名稱</div>
+            <input class="field-inp" type="text" value="${esc(o.item)}"
+              oninput="pendingEdits[${o.id}]=pendingEdits[${o.id}]||{}; pendingEdits[${o.id}].item=this.value">
+          </div>
+          <div class="field-box">
+            <div class="field-lbl">尺寸/規格</div>
+            <input class="field-inp" type="text" value="${esc(o.size||'')}"
+              oninput="pendingEdits[${o.id}]=pendingEdits[${o.id}]||{}; pendingEdits[${o.id}].size=this.value">
+          </div>
+          <div class="field-box">
+            <div class="field-lbl">數量</div>
+            <input class="field-inp" type="number" min="1" value="${o.quantity||1}"
+              oninput="pendingEdits[${o.id}]=pendingEdits[${o.id}]||{}; pendingEdits[${o.id}].quantity=this.value">
+          </div>
+          <div class="field-box">
+            <div class="field-lbl">廠商</div>
+            <input class="field-inp" type="text" value="${esc(o.vendor||'')}"
+              oninput="pendingEdits[${o.id}]=pendingEdits[${o.id}]||{}; pendingEdits[${o.id}].vendor=this.value">
+          </div>
+        </div>
         <div class="picking-fields">
           <div class="field-box">
             <div class="field-lbl">日幣原價 ¥</div>
