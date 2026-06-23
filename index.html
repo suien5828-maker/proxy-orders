@@ -292,15 +292,10 @@ function addTrip() {
 function closeTrip() {
   const pwd = prompt('請輸入結團密碼：');
   if (pwd !== '888') { alert('密碼錯誤！'); return; }
-  const nextNum = parseInt(currentTrip.replace(/[^0-9]/g,'')) + 1 || 2;
-  const nextTrip = `第${nextNum}團`;
-  if (!confirm(`確定結束「${currentTrip}」？
-下一團將自動設為「${nextTrip}」`)) return;
-  currentTrip = nextTrip;
-  document.getElementById('trip-input').value = nextTrip;
-  showArchived = false;
+  if (!confirm(`確定結束「${currentTrip}」？`)) return;
+  showArchived = true;
   loadOrders();
-  alert(`已結團！現在是「${nextTrip}」，可以開始接新訂單了。`);
+  alert(`「${currentTrip}」已結團！需要開新團時請在「新增團次」輸入名稱。`);
 }
 
 function toggleArchived() {
