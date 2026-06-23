@@ -153,6 +153,19 @@ tr:nth-child(even) td { background: #FAFAF8; }
       <button class="btn-primary" id="add-btn" onclick="addOrder()">+ 加入訂單</button>
     </div>
 
+    <div id="trip-bar" style="background:#fff;border-radius:12px;padding:14px 18px;border:1px solid #E8E4DF;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:13px;color:#6B6B80">目前團次：</span>
+        <input type="text" id="trip-input" value="第1團"
+          style="border:1.5px solid #E8A87C;border-radius:6px;padding:6px 10px;font-size:13px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit;width:100px">
+        <button onclick="setTrip()" style="background:#1A1A2E;color:#E8A87C;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">切換</button>
+        <button onclick="closeTrip()" style="background:#D64045;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🔒 結團</button>
+      </div>
+      <button onclick="toggleArchived()" id="archive-btn"
+        style="background:transparent;border:1.5px solid #DDD8D0;border-radius:6px;padding:7px 14px;font-size:12px;color:#6B6B80;cursor:pointer;font-family:inherit">
+        📦 查看歷史
+      </button>
+    </div>
     <div class="loading" id="loading-orders">載入中…</div>
     <div class="card" id="table-card" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -213,8 +226,46 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let orders = [];
 let currentImageFile = null;
+let currentTrip = '第1團';
+let showArchived = false;
 // Store picking data locally (rate, price_jpy, shipping, extra, discount, note per order group)
 let pickingData = {};
+
+function updateTripUI() {
+  const tripInput = document.getElementById('trip-input');
+  const archiveBtn = document.getElementById('archive-btn');
+  const tripBar = document.getElementById('trip-bar');
+  if (tripInput) tripInput.value = currentTrip;
+  if (archiveBtn) archiveBtn.textContent = showArchived ? '📋 回到本團' : '📦 查看歷史';
+  if (tripBar) tripBar.style.background = showArchived ? '#FFF3E0' : '#fff';
+}
+
+function setTrip() {
+  const val = document.getElementById('trip-input').value.trim();
+  if (!val) return;
+  currentTrip = val;
+  showArchived = false;
+  loadOrders();
+}
+
+function closeTrip() {
+  const pwd = prompt('請輸入結團密碼：');
+  if (pwd !== '888') { alert('密碼錯誤！'); return; }
+  const nextNum = parseInt(currentTrip.replace(/[^0-9]/g,'')) + 1 || 2;
+  const nextTrip = `第${nextNum}團`;
+  if (!confirm(`確定結束「${currentTrip}」？
+下一團將自動設為「${nextTrip}」`)) return;
+  currentTrip = nextTrip;
+  document.getElementById('trip-input').value = nextTrip;
+  showArchived = false;
+  loadOrders();
+  alert(`已結團！現在是「${nextTrip}」，可以開始接新訂單了。`);
+}
+
+function toggleArchived() {
+  showArchived = !showArchived;
+  loadOrders();
+}
 
 function generateOrderNo() {
   const d = new Date().toISOString().slice(0,10).replace(/-/g,'');
@@ -226,7 +277,9 @@ async function loadOrders() {
   const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending: false });
   document.getElementById('loading-orders').style.display = 'none';
   if (error) { console.error(error); return; }
-  orders = data || [];
+  const all = data || [];
+  orders = showArchived ? all : all.filter(o => (o.trip || '第1團') === currentTrip);
+  updateTripUI();
   // Populate pickingData from DB values
   orders.forEach(o => {
     if (!pickingData[o.nickname]) pickingData[o.nickname] = { shipping: '', extra: '', discount: '', note: '', items: {} };
@@ -323,7 +376,7 @@ async function addOrder() {
       image_url = urlData.publicUrl;
     }
   }
-  const { error } = await sb.from('orders').insert([{ nickname, item, size, quantity, vendor, image_url }]);
+  const { error } = await sb.from('orders').insert([{ nickname, item, size, quantity, vendor, image_url, trip: currentTrip }]);
   btn.disabled = false; btn.textContent = '+ 加入訂單';
   if (error) { errEl.textContent = '儲存失敗：' + error.message; errEl.style.display = 'block'; return; }
   successEl.textContent = '✓ 訂單已儲存！'; successEl.style.display = 'block';
