@@ -108,6 +108,7 @@ tr:nth-child(even) td { background: #FAFAF8; }
     <div class="header-eyebrow">代購管理</div>
     <h1>CC 選物代購</h1>
     <p>訂單登記系統 ── 上傳商品圖片 → 填寫資料 → 即時同步給團隊</p>
+    <div style="margin-top:8px;display:inline-block;background:#E8A87C;color:#1A1A2E;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:700" id="header-trip-label">📍 CC六月連線/選物訂單</div>
   </div>
 </div>
 <div class="tabs">
@@ -252,9 +253,11 @@ let knownTrips = ['CC六月連線/選物訂單'];
 function updateTripUI() {
   const archiveBtn = document.getElementById('archive-btn');
   const label = document.getElementById('current-trip-label');
+  const headerLabel = document.getElementById('header-trip-label');
   const sel = document.getElementById('trip-select');
   if (archiveBtn) archiveBtn.textContent = showArchived ? '📋 回到本團' : '📦 查看歷史';
   if (label) label.textContent = showArchived ? '查看歷史中' : currentTrip;
+  if (headerLabel) headerLabel.textContent = showArchived ? '📦 查看歷史中' : `📍 ${currentTrip}`;
 
   // Update trips from all orders
   const fromDB = [...new Set((window._allOrders||[]).map(o => o.trip || '第1團'))];
