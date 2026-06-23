@@ -153,18 +153,34 @@ tr:nth-child(even) td { background: #FAFAF8; }
       <button class="btn-primary" id="add-btn" onclick="addOrder()">+ 加入訂單</button>
     </div>
 
-    <div id="trip-bar" style="background:#fff;border-radius:12px;padding:14px 18px;border:1px solid #E8E4DF;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-size:13px;color:#6B6B80">目前團次：</span>
-        <input type="text" id="trip-input" value="第1團"
-          style="border:1.5px solid #E8A87C;border-radius:6px;padding:6px 10px;font-size:13px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit;width:100px">
-        <button onclick="setTrip()" style="background:#1A1A2E;color:#E8A87C;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">切換</button>
-        <button onclick="closeTrip()" style="background:#D64045;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🔒 結團</button>
+    <div style="background:#fff;border-radius:12px;padding:18px;border:1px solid #E8E4DF;display:flex;flex-direction:column;gap:14px">
+      <!-- 目前團次 -->
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:600;color:#1A1A2E">目前團次：</span>
+          <span id="current-trip-label" style="background:#E8A87C;color:#1A1A2E;border-radius:6px;padding:4px 12px;font-size:13px;font-weight:700">第1團</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="toggleArchived()" id="archive-btn"
+            style="background:transparent;border:1.5px solid #DDD8D0;border-radius:6px;padding:7px 14px;font-size:12px;color:#6B6B80;cursor:pointer;font-family:inherit">
+            📦 查看歷史
+          </button>
+          <button onclick="closeTrip()" style="background:#D64045;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🔒 結團</button>
+        </div>
       </div>
-      <button onclick="toggleArchived()" id="archive-btn"
-        style="background:transparent;border:1.5px solid #DDD8D0;border-radius:6px;padding:7px 14px;font-size:12px;color:#6B6B80;cursor:pointer;font-family:inherit">
-        📦 查看歷史
-      </button>
+      <!-- 切換/新增團次 -->
+      <div style="border-top:1px solid #F0EDEA;padding-top:12px">
+        <div style="font-size:11px;font-weight:600;color:#6B6B80;margin-bottom:8px;letter-spacing:0.5px">切換 / 新增團次</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select id="trip-select" onchange="onTripSelectChange()"
+            style="border:1.5px solid #DDD8D0;border-radius:6px;padding:7px 10px;font-size:13px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit;flex:1;min-width:120px">
+          </select>
+          <input type="text" id="trip-input" placeholder="輸入新團次名稱"
+            style="border:1.5px solid #DDD8D0;border-radius:6px;padding:7px 10px;font-size:13px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit;flex:1;min-width:120px">
+          <button onclick="applyTrip()" style="background:#1A1A2E;color:#E8A87C;border:none;border-radius:6px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">✓ 套用</button>
+        </div>
+        <div style="font-size:11px;color:#A0A0B8;margin-top:6px">下拉選已有團次，或在輸入框打新名稱再按套用</div>
+      </div>
     </div>
     <div class="loading" id="loading-orders">載入中…</div>
     <div class="card" id="table-card" style="display:none">
@@ -240,13 +256,7 @@ function updateTripUI() {
   if (tripBar) tripBar.style.background = showArchived ? '#FFF3E0' : '#fff';
 }
 
-function setTrip() {
-  const val = document.getElementById('trip-input').value.trim();
-  if (!val) return;
-  currentTrip = val;
-  showArchived = false;
-  loadOrders();
-}
+
 
 function closeTrip() {
   const pwd = prompt('請輸入結團密碼：');
@@ -277,8 +287,8 @@ async function loadOrders() {
   const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending: false });
   document.getElementById('loading-orders').style.display = 'none';
   if (error) { console.error(error); return; }
-  const all = data || [];
-  orders = showArchived ? all : all.filter(o => (o.trip || '第1團') === currentTrip);
+  window._allOrders = data || [];
+  orders = showArchived ? window._allOrders : window._allOrders.filter(o => (o.trip || '第1團') === currentTrip);
   updateTripUI();
   // Populate pickingData from DB values
   orders.forEach(o => {
