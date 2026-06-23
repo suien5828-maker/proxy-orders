@@ -376,11 +376,21 @@ function renderTable() {
 
 function groupByNickname() {
   const groups = {};
+  const displayNames = {}; // keep first-seen capitalization for display
   orders.forEach(o => {
-    if (!groups[o.nickname]) groups[o.nickname] = [];
-    groups[o.nickname].push(o);
+    const key = o.nickname.toLowerCase();
+    if (!groups[key]) {
+      groups[key] = [];
+      displayNames[key] = o.nickname; // use first seen name for display
+    }
+    groups[key].push(o);
   });
-  return groups;
+  // Re-key with display names
+  const result = {};
+  Object.keys(groups).forEach(key => {
+    result[displayNames[key]] = groups[key];
+  });
+  return result;
 }
 
 function getPickingData(nickname) {
