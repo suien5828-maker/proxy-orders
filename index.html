@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>CC 選物代購 - 訂單管理頁面</title>
+<title>CC 選物代購 - 訂單管理</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -105,7 +105,7 @@ tr:nth-child(even) td { background: #FAFAF8; }
 <body>
 <div class="header">
   <div class="header-inner">
-    <div class="header-eyebrow">代購訂單管理頁面</div>
+    <div class="header-eyebrow">代購管理</div>
     <h1>CC 選物代購</h1>
     <p>訂單登記系統 ── 上傳商品圖片 → 填寫資料 → 即時同步給團隊</p>
   </div>
@@ -113,7 +113,7 @@ tr:nth-child(even) td { background: #FAFAF8; }
 <div class="tabs">
   <div class="tabs-inner">
     <button class="tab-btn active" onclick="switchTab('orders')">📋 訂單列表</button>
-    <button class="tab-btn" onclick="switchTab('picking')">📦 訂單整理</button>
+    <button class="tab-btn" onclick="switchTab('picking')">📋 訂單整理</button>
     <button class="tab-btn" onclick="switchTab('shipping')">🚚 出貨單</button>
   </div>
 </div>
@@ -145,7 +145,7 @@ tr:nth-child(even) td { background: #FAFAF8; }
         <div class="form-group"><label>商品 *</label><input type="text" id="f-item" placeholder="如：上衣、襪子、零食"></div>
         <div class="form-group"><label>尺寸/規格</label><input type="text" id="f-size" placeholder="如：粉100、草莓口味、藍S"></div>
         <div class="form-group"><label>數量</label><input type="number" id="f-quantity" placeholder="如：1、2" min="1"></div>
-        <div class="form-group full"><label>廠商/品牌</label><input type="text" id="f-vendor" placeholder="如：生日城、批店、好市多"></div>
+        <div class="form-group full"><label>廠商</label><input type="text" id="f-vendor" placeholder="廠商名稱"></div>
       </div>
       <div class="error" id="form-error" style="display:none"></div>
       <div class="success" id="form-success" style="display:none"></div>
@@ -223,6 +223,7 @@ async function loadOrders() {
     if (o.price_jpy) pickingData[o.nickname].items[o.id].price_jpy = o.price_jpy;
     if (o.rate) pickingData[o.nickname].items[o.id].rate = o.rate;
     if (o.price_twd) pickingData[o.nickname].items[o.id].price_twd = o.price_twd;
+    if (o.status) pickingData[o.nickname].items[o.id].status = o.status;
   });
   renderTable();
   renderPicking();
@@ -290,7 +291,7 @@ async function addOrder() {
   const size = document.getElementById('f-size').value.trim();
   const quantity = document.getElementById('f-quantity').value.trim();
   const vendor = document.getElementById('f-vendor').value.trim();
-  const order_no = generateOrderNo();
+  const order_no = null; // 訂單編號在出貨單產生
   const errEl = document.getElementById('form-error');
   const successEl = document.getElementById('form-success');
   const btn = document.getElementById('add-btn');
@@ -307,10 +308,10 @@ async function addOrder() {
       image_url = urlData.publicUrl;
     }
   }
-  const { error } = await sb.from('orders').insert([{ nickname, item, size, quantity, vendor, image_url, order_no }]);
+  const { error } = await sb.from('orders').insert([{ nickname, item, size, quantity, vendor, image_url }]);
   btn.disabled = false; btn.textContent = '+ 加入訂單';
   if (error) { errEl.textContent = '儲存失敗：' + error.message; errEl.style.display = 'block'; return; }
-  successEl.textContent = `✓ 訂單已儲存！編號：${order_no}`; successEl.style.display = 'block';
+  successEl.textContent = '✓ 訂單已儲存！'; successEl.style.display = 'block';
   setTimeout(() => successEl.style.display = 'none', 4000);
   ['f-nickname','f-item','f-size','f-quantity','f-vendor'].forEach(id => document.getElementById(id).value = '');
   removeImage(); loadOrders();
@@ -322,6 +323,17 @@ async function deleteOrder(id) {
   const { error } = await sb.from('orders').delete().eq('id', Number(id));
   if (error) { alert('刪除失敗：' + error.message); return; }
   loadOrders();
+}
+
+// Store generated order numbers per nickname
+const shippingOrderNos = {};
+function shipOrderNo(name, items) {
+  if (!shippingOrderNos[name]) {
+    const d = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    const r = Math.floor(Math.random()*900+100);
+    shippingOrderNos[name] = `CC${d}-${r}`;
+  }
+  return shippingOrderNos[name];
 }
 
 function formatDate(str) {
@@ -365,12 +377,25 @@ function getPickingData(nickname) {
 
 function getItemPickingData(nickname, id) {
   const pd = getPickingData(nickname);
-  if (!pd.items[id]) pd.items[id] = { price_jpy: '', rate: '', price_twd: '' };
+  if (!pd.items[id]) pd.items[id] = { price_jpy: '', rate: '', price_twd: '', status: 'pending' };
   return pd.items[id];
+}
+
+const STATUS_OPTIONS_P1 = [
+  { value: 'pending', label: '處理中', color: '#A0A0B8', bg: '#F0F0F8' },
+  { value: 'success', label: '採購成功', color: '#2E7D32', bg: '#E8F5E9' },
+  { value: 'outofstock', label: '斷貨', color: '#D64045', bg: '#FFEBEE' },
+  { value: 'preparing', label: '出貨準備中', color: '#E65100', bg: '#FFF3E0' },
+  { value: 'done', label: '已完成', color: '#1565C0', bg: '#E3F2FD' },
+];
+
+function getStatusOptP1(status) {
+  return STATUS_OPTIONS_P1.find(s => s.value === status) || STATUS_OPTIONS_P1[0];
 }
 
 function calcItemTwd(nickname, id) {
   const d = getItemPickingData(nickname, id);
+  if (d.status === 'outofstock') return 0; // 斷貨不計入
   if (d.price_twd && parseFloat(d.price_twd) > 0) return parseFloat(d.price_twd);
   const jpy = parseFloat(d.price_jpy) || 0;
   const rate = parseFloat(d.rate) || 0;
@@ -418,6 +443,7 @@ async function savePicking(nickname) {
       price_jpy: parseFloat(itemData.price_jpy) || 0,
       rate: parseFloat(itemData.rate) || 0,
       price_twd: parseFloat(itemData.price_twd) || 0,
+      status: itemData.status || 'pending',
     }).eq('id', o.id);
   }
 
@@ -477,6 +503,7 @@ function renderPicking() {
             <div style="font-size:12px;color:#6B6B80;margin-top:3px">
               ${o.size?`尺寸：${esc(o.size)}　`:''}數量：${o.quantity||1}　廠商：${esc(o.vendor)||'-'}
             </div>
+            ${(() => { const s = getStatusOptP1(getItemPickingData(name, o.id).status); return `<span style="display:inline-block;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;background:${s.bg};color:${s.color};margin-top:4px">${s.label}</span>`; })()}
           </div>
         </div>
         <div class="picking-fields">
@@ -503,6 +530,12 @@ function renderPicking() {
             <input class="field-inp" type="number" placeholder="填了優先使用"
               value="${getItemPickingData(name, o.id).price_twd}"
               oninput="updateItemField('${esc(name)}', ${o.id}, 'price_twd', this.value)">
+          </div>
+          <div class="field-box" style="grid-column:1/-1">
+            <div class="field-lbl">商品狀態</div>
+            <select class="field-inp" onchange="updateItemField('${esc(name)}', ${o.id}, 'status', this.value); rerenderGroupTotal('${esc(name)}')">
+              ${STATUS_OPTIONS_P1.map(s => `<option value="${s.value}" ${getItemPickingData(name, o.id).status === s.value ? 'selected' : ''}>${s.label}</option>`).join('')}
+            </select>
           </div>
         </div>
       </div>`).join('')}
@@ -569,7 +602,7 @@ function renderShipping() {
             <div>
               <span class="shipping-name">${esc(name)}</span>
               <div style="margin-top:2px">
-                <span class="order-no-tag" style="background:#2A2A4E;color:#A0A0C8">${esc(firstOrder?.order_no||'-')}</span>
+                <span class="order-no-tag" style="background:#2A2A4E;color:#A0A0C8" id="ship-no-${CSS.escape(name)}">${shipOrderNo(name, items)}</span>
                 <span style="color:#A0A0B8;font-size:11px;margin-left:6px">${formatDate(firstOrder?.created_at)}</span>
               </div>
             </div>
@@ -586,6 +619,7 @@ function renderShipping() {
             ${o.size ? `<span>尺寸：<b>${esc(o.size)}</b></span>` : ''}
             ${o.vendor ? `<span>商品來源：<b>${esc(o.vendor)}</b></span>` : ''}
           </div>
+          ${(() => { const pd = getItemPickingData(name, o.id); const s = getStatusOptP1(pd.status); return `<span style="display:inline-block;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;background:${s.bg};color:${s.color};margin-top:4px">${s.label}</span>`; })()}
         </div>
         <div class="shipping-qty">
           <div style="font-size:10px;margin-bottom:2px">數量</div>
