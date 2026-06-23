@@ -219,11 +219,36 @@ tr:nth-child(even) td { background: #FAFAF8; }
   <!-- 出貨單 -->
   <div id="shipping-tab" style="display:none">
     <div class="print-header"><h2>CC 選物代購</h2><p>出貨單</p></div>
-    <div class="shipping-top" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div><span style="font-weight:700;color:#1A1A2E;font-size:15px">出貨單</span><span id="shipping-count" style="margin-left:10px;font-size:13px;color:#6B6B80"></span></div>
-      <button class="btn-secondary" onclick="printShipping()">🖨 列印勾選</button>
+    <div class="shipping-top">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div><span style="font-weight:700;color:#1A1A2E;font-size:15px">出貨單</span><span id="shipping-count" style="margin-left:10px;font-size:13px;color:#6B6B80"></span></div>
+        <button class="btn-secondary" onclick="printShippingForCustomer()">🖨 列印</button>
+      </div>
+      <!-- 選擇客人 -->
+      <div style="background:#fff;border-radius:12px;padding:16px;border:1px solid #E8E4DF;margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:#6B6B80;margin-bottom:6px;display:block">選擇客人</label>
+        <select id="shipping-customer-select" onchange="renderShippingForCustomer()"
+          style="width:100%;border:1.5px solid #DDD8D0;border-radius:8px;padding:10px 12px;font-size:14px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
+          <option value="">-- 選擇客人 --</option>
+        </select>
+      </div>
+      <!-- 團次總售出金額 -->
+      <div style="background:#fff;border-radius:12px;padding:16px;border:1px solid #E8E4DF;margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:#6B6B80;margin-bottom:6px;display:block">查詢團次總售出金額</label>
+        <div style="display:flex;gap:8px">
+          <select id="trip-revenue-select"
+            style="flex:1;border:1.5px solid #DDD8D0;border-radius:8px;padding:10px 12px;font-size:14px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
+            <option value="">-- 選擇團次 --</option>
+          </select>
+          <button onclick="showTripRevenue()" style="background:#1A1A2E;color:#E8A87C;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">查詢</button>
+        </div>
+        <div id="trip-revenue-result" style="display:none;margin-top:12px;background:#FEF9F4;border-radius:8px;padding:12px 16px;border:1px solid #E8A87C">
+          <div style="font-size:13px;color:#6B6B80" id="trip-revenue-label"></div>
+          <div style="font-size:22px;font-weight:700;color:#E8A87C;margin-top:4px" id="trip-revenue-amount"></div>
+        </div>
+      </div>
     </div>
-    <div id="shipping-empty" class="empty" style="display:none">尚無訂單</div>
+    <div id="shipping-empty" class="empty" style="display:none">請從上方選擇客人</div>
     <div class="shipping-cards" id="shipping-cards"></div>
   </div>
   <!-- 客人查詢 -->
@@ -757,8 +782,39 @@ function renderPickingForCustomer() {
 function renderShipping() {
   const groups = groupByNickname();
   const names = Object.keys(groups);
-  document.getElementById('shipping-empty').style.display = names.length ? 'none' : 'block';
   document.getElementById('shipping-count').textContent = names.length ? `共 ${names.length} 位客人` : '';
+
+  // Update customer select
+  const sel = document.getElementById('shipping-customer-select');
+  const current = sel ? sel.value : '';
+  if (sel) {
+    sel.innerHTML = '<option value="">-- 選擇客人 --</option>' +
+      names.map(n => `<option value="${esc(n)}" ${n===current?'selected':''}>${esc(n)}</option>`).join('');
+  }
+
+  // Update trip revenue select
+  const allTrips = [...new Set((window._allOrders||[]).map(o => o.trip || 'CC六月連線/選物訂單'))];
+  const tripSel = document.getElementById('trip-revenue-select');
+  if (tripSel) {
+    tripSel.innerHTML = '<option value="">-- 選擇團次 --</option>' +
+      allTrips.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  }
+
+  renderShippingForCustomer();
+}
+
+function renderShippingForCustomer() {
+  const sel = document.getElementById('shipping-customer-select');
+  const selected = sel ? sel.value : '';
+
+  document.getElementById('shipping-empty').style.display = !selected ? 'block' : 'none';
+  if (!selected) {
+    document.getElementById('shipping-cards').innerHTML = '';
+    return;
+  }
+
+  const groups = groupByNickname();
+  const names = [selected];
   document.getElementById('shipping-cards').innerHTML = names.map(name => {
     const items = groups[name];
     const firstOrder = items[0];
@@ -813,6 +869,40 @@ function renderShipping() {
       </div>
     </div>`;
   }).join('');
+}
+
+function printShippingForCustomer() {
+  const sel = document.getElementById('shipping-customer-select');
+  if (!sel?.value) { alert('請先選擇客人！'); return; }
+  window.print();
+}
+
+function showTripRevenue() {
+  const trip = document.getElementById('trip-revenue-select').value;
+  if (!trip) { alert('請先選擇團次！'); return; }
+  const pwd = prompt('請輸入密碼：');
+  if (pwd !== '888') { alert('密碼錯誤！'); return; }
+  const allO = window._allOrders || [];
+  const tripOrders = allO.filter(o => (o.trip || 'CC六月連線/選物訂單') === trip);
+  const total = tripOrders.reduce((s, o) => {
+    if (o.status === 'outofstock') return s;
+    const twd = (o.price_twd && o.price_twd > 0) ? o.price_twd : (o.price_jpy * (o.rate||0));
+    const pd = getPickingData(o.nickname);
+    return s + twd * (parseInt(o.quantity)||1);
+  }, 0);
+  // Add shipping/extra/discount per customer group
+  const groups = {};
+  tripOrders.forEach(o => {
+    if (!groups[o.nickname]) groups[o.nickname] = o;
+  });
+  const adjustments = Object.values(groups).reduce((s, o) => {
+    const pd = getPickingData(o.nickname);
+    return s + Number(pd.shipping||0) + Number(pd.extra||0) - Number(pd.discount||0);
+  }, 0);
+  const grandTotal = total + adjustments;
+  document.getElementById('trip-revenue-result').style.display = 'block';
+  document.getElementById('trip-revenue-label').textContent = `${trip} 總售出金額（不含斷貨）`;
+  document.getElementById('trip-revenue-amount').textContent = `NT$${Math.round(grandTotal).toLocaleString()}`;
 }
 
 function printShipping() {
