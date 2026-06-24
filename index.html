@@ -571,9 +571,15 @@ function getStatusOptP1(status) {
   return STATUS_OPTIONS_P1.find(s => s.value === status) || STATUS_OPTIONS_P1[0];
 }
 
+const COUNT_STATUSES = ['success', 'preparing', 'done']; // 只有這些狀態才計入金額
+
+function statusCountsToTotal(status) {
+  return COUNT_STATUSES.includes(status);
+}
+
 function calcItemTwd(nickname, id) {
   const d = getItemPickingData(nickname, id);
-  if (d.status === 'outofstock') return 0; // 斷貨不計入
+  if (!statusCountsToTotal(d.status || 'pending')) return 0; // 處理中、斷貨不計入
   if (d.price_twd && parseFloat(d.price_twd) > 0) return parseFloat(d.price_twd);
   const jpy = parseFloat(d.price_jpy) || 0;
   const rate = parseFloat(d.rate) || 0;
@@ -938,8 +944,8 @@ async function saveAllPicking() {
   for (const o of orders) {
     const itemData = getItemPickingData(o.nickname, o.id);
     const edits = pendingEdits[o.id] || {};
-    const hasChanges = edits.status || edits.price_jpy !== undefined || edits.rate !== undefined || edits.price_twd !== undefined;
-    if (hasChanges || (itemData.status && itemData.status !== (o.status || 'pending'))) {
+    const hasChanges = Object.keys(edits).length > 0 || (itemData.status && itemData.status !== (o.status || 'pending'));
+    if (hasChanges) {
       await sb.from('orders').update({
         status: edits.status || itemData.status || o.status || 'pending',
         price_jpy: edits.price_jpy !== undefined ? edits.price_jpy : (o.price_jpy || 0),
@@ -1070,9 +1076,11 @@ function showTripRevenue() {
   const allO = window._allOrders || [];
   const tripOrders = allO.filter(o => (o.trip || 'CC六月連線/選物訂單') === trip);
   const total = tripOrders.reduce((s, o) => {
-    if (o.status === 'outofstock') return s;
-    const twd = (o.price_twd && o.price_twd > 0) ? o.price_twd : (o.price_jpy * (o.rate||0));
+    if (!statusCountsToTotal(o.status || 'pending')) return s;
     const pd = getPickingData(o.nickname);
+    const itemPd = getItemPickingData(o.nickname, o.id);
+    const twd = (itemPd.price_twd && parseFloat(itemPd.price_twd) > 0) ? parseFloat(itemPd.price_twd) :
+                (o.price_twd && o.price_twd > 0) ? o.price_twd : (o.price_jpy * (o.rate||0));
     return s + twd * (parseInt(o.quantity)||1);
   }, 0);
   // Add shipping/extra/discount per customer group
