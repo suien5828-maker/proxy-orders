@@ -191,7 +191,7 @@ tr:nth-child(even) td { background: #FAFAF8; }
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>圖片</th><th>訂單編號</th><th>日期</th><th>暱稱</th><th>商品</th><th>尺寸</th><th>數量</th><th>廠商</th><th></th></tr>
+            <tr><th>圖片</th><th>訂單編號</th><th>日期</th><th>暱稱</th><th>商品</th><th>尺寸</th><th>數量</th><th>廠商</th><th>日幣</th><th>台幣</th><th></th></tr>
           </thead>
           <tbody id="order-tbody"></tbody>
         </table>
@@ -496,6 +496,14 @@ function renderTable() {
       <td>${esc(o.size)||'-'}</td>
       <td style="text-align:center">${esc(o.quantity)||'-'}</td>
       <td style="color:#6B6B80">${esc(o.vendor)||'-'}</td>
+      <td style="font-size:12px;color:#6B6B80">${o.price_jpy > 0 ? '¥'+Number(o.price_jpy).toLocaleString() : '-'}</td>
+      <td style="font-weight:600;color:#1A1A2E;font-size:13px">${(() => {
+        const pd = getItemPickingData(o.nickname, o.id);
+        if (pd.price_twd && parseFloat(pd.price_twd) > 0) return 'NT$'+Math.round(parseFloat(pd.price_twd)).toLocaleString();
+        if (o.price_twd && o.price_twd > 0) return 'NT$'+Math.round(o.price_twd).toLocaleString();
+        if (o.price_jpy && o.rate) return 'NT$'+Math.round(o.price_jpy * o.rate).toLocaleString();
+        return '-';
+      })()}</td>
       <td><button class="del-btn" onclick="deleteOrder(${o.id})">×</button></td>
     </tr>`).join('');
 }
@@ -850,6 +858,16 @@ function renderShippingForCustomer() {
           <div class="shipping-meta">
             ${o.size ? `<span>尺寸：<b>${esc(o.size)}</b></span>` : ''}
             ${o.vendor ? `<span>商品來源：<b>${esc(o.vendor)}</b></span>` : ''}
+          </div>
+          <div style="margin-top:5px;display:flex;gap:12px;font-size:12px;flex-wrap:wrap">
+            ${o.price_jpy > 0 ? `<span style="color:#6B6B80">日幣：<b style="color:#1A1A2E">¥${Number(o.price_jpy).toLocaleString()}</b></span>` : ''}
+            ${(() => {
+              const pd = getItemPickingData(name, o.id);
+              const twd = (pd.price_twd && parseFloat(pd.price_twd) > 0) ? parseFloat(pd.price_twd) :
+                          (o.price_twd && o.price_twd > 0) ? o.price_twd :
+                          (o.price_jpy && o.rate) ? o.price_jpy * o.rate : 0;
+              return twd > 0 ? `<span style="color:#6B6B80">台幣：<b style="color:#E8A87C">NT$${Math.round(twd).toLocaleString()}</b></span>` : '';
+            })()}
           </div>
           ${(() => { const pd = getItemPickingData(name, o.id); const s = getStatusOptP1(pd.status); return `<span style="display:inline-block;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;background:${s.bg};color:${s.color};margin-top:4px">${s.label}</span>`; })()}
         </div>
