@@ -345,7 +345,7 @@ function generateOrderNo() {
 }
 
 async function loadOrders() {
-  const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending: true });
+  const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending: false });
   document.getElementById('loading-orders').style.display = 'none';
   if (error) { console.error(error); return; }
   window._allOrders = data || [];
@@ -484,7 +484,9 @@ function renderTable() {
   const tbody = document.getElementById('order-tbody');
   document.getElementById('table-card').style.display = orders.length ? 'block' : 'none';
   document.getElementById('order-count').textContent = orders.length + ' 筆';
-  tbody.innerHTML = orders.map(o => `
+  // 訂單列表：最新的在上面
+  const tableOrders = [...orders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  tbody.innerHTML = tableOrders.map(o => `
     <tr>
       <td>${o.image_url ? `<img class="thumb" src="${esc(o.image_url)}">` : '<div class="no-img">無圖</div>'}</td>
       <td><span class="order-no-tag">${esc(o.order_no)||'-'}</span></td>
@@ -500,16 +502,17 @@ function renderTable() {
 
 function groupByNickname() {
   const groups = {};
-  const displayNames = {}; // keep first-seen capitalization for display
-  orders.forEach(o => {
+  const displayNames = {};
+  // Sort ascending (oldest first) for picking/shipping/customer tabs
+  const sorted = [...orders].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  sorted.forEach(o => {
     const key = o.nickname.toLowerCase();
     if (!groups[key]) {
       groups[key] = [];
-      displayNames[key] = o.nickname; // use first seen name for display
+      displayNames[key] = o.nickname;
     }
     groups[key].push(o);
   });
-  // Re-key with display names
   const result = {};
   Object.keys(groups).forEach(key => {
     result[displayNames[key]] = groups[key];
@@ -961,7 +964,7 @@ function showCustomerOrders() {
 
   // Get ALL orders for this customer (case-insensitive)
   const allO = window._allOrders || [];
-  const customerOrders = allO.filter(o => o.nickname.toLowerCase() === name.toLowerCase());
+  const customerOrders = allO.filter(o => o.nickname.toLowerCase() === name.toLowerCase()).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
 
   // Group by trip
   const tripMap = {};
