@@ -214,6 +214,7 @@ tr:nth-child(even) td { background: #FAFAF8; }
       <select id="picking-customer-select" onchange="renderPickingForCustomer()"
         style="width:100%;border:1.5px solid #DDD8D0;border-radius:8px;padding:10px 12px;font-size:14px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
         <option value="">-- 選擇客人 --</option>
+        <option value="__ALL__">📋 顯示全部商品（按時間排序）</option>
       </select>
     </div>
     <div id="picking-empty" class="empty" style="display:none">請從上方選擇客人</div>
@@ -659,6 +660,7 @@ function renderPicking() {
   const current = sel ? sel.value : '';
   if (sel) {
     sel.innerHTML = '<option value="">-- 選擇客人 --</option>' +
+      '<option value="__ALL__" ' + (current==='__ALL__'?'selected':'') + '>📋 顯示全部商品（按時間排序）</option>' +
       names.map(n => `<option value="${esc(n)}" ${n===current?'selected':''}>${esc(n)}</option>`).join('');
   }
 
@@ -668,8 +670,6 @@ function renderPicking() {
 function renderPickingForCustomer() {
   const sel = document.getElementById('picking-customer-select');
   const selected = sel ? sel.value : '';
-  const groups = groupByNickname();
-  const names = selected ? [selected] : [];
 
   document.getElementById('picking-empty').style.display = (!selected) ? 'block' : 'none';
   if (!selected) {
@@ -678,6 +678,14 @@ function renderPickingForCustomer() {
     return;
   }
 
+  // 全部商品模式
+  if (selected === '__ALL__') {
+    renderPickingAll();
+    return;
+  }
+
+  const groups = groupByNickname();
+  const names = [selected];
   document.getElementById('picking-cards').innerHTML = names.map(name => {
     const items = groups[name];
     const firstOrder = items[0];
@@ -807,6 +815,62 @@ function renderPickingForCustomer() {
   }).join('');
 }
 
+function renderPickingAll() {
+  // Show all items sorted by created_at ascending (oldest first = newest last)
+  const allSorted = [...orders].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  if (!allSorted.length) {
+    document.getElementById('picking-cards').innerHTML = '<div class="empty">尚無訂單</div>';
+    return;
+  }
+
+  document.getElementById('picking-cards').innerHTML = `
+    <div style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #E8E4DF;box-shadow:0 2px 10px rgba(0,0,0,0.05)">
+      <div style="background:#1A1A2E;padding:12px 18px;display:flex;justify-content:space-between;align-items:center">
+        <span style="color:#fff;font-weight:700;font-size:15px">全部商品</span>
+        <span style="color:#E8A87C;font-size:12px;font-weight:600">共 ${allSorted.reduce((s,o)=>s+(parseInt(o.quantity)||1),0)} 件</span>
+      </div>
+      ${allSorted.map((o, idx) => {
+        const pd = getItemPickingData(o.nickname, o.id);
+        const s = getStatusOptP1(pd.status || o.status || 'pending');
+        return `<div style="padding:12px 18px;border-bottom:1px solid #F0EDEA;display:flex;gap:12px;align-items:center;background:${idx%2===0?'#fff':'#FAFAF8'}">
+          ${o.image_url ? `<img src="${esc(o.image_url)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;border:1px solid #E0DCD8">` : '<div style="width:56px;height:56px;background:#F0EDEA;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#CCC;flex-shrink:0">無圖</div>'}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;color:#1A1A2E;font-size:14px;margin-bottom:2px">${esc(o.item)}</div>
+            <div style="font-size:12px;color:#6B6B80">
+              <span style="font-weight:600;color:#E8A87C">${esc(o.nickname)}</span>
+              ${o.size ? `　${esc(o.size)}` : ''}　數量：${o.quantity||1}
+            </div>
+            <div style="margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="display:inline-block;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;background:${s.bg};color:${s.color}">${s.label}</span>
+              <select style="border:1.5px solid #DDD8D0;border-radius:6px;padding:3px 8px;font-size:12px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit"
+                onchange="updateItemField('${esc(o.nickname)}', ${o.id}, 'status', this.value); rerenderGroupTotal('${esc(o.nickname)}')">
+                ${STATUS_OPTIONS_P1.map(st => `<option value="${st.value}" ${(pd.status||o.status||'pending')===st.value?'selected':''}>${st.label}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#B0A8A0;flex-shrink:0;text-align:right">${formatDate(o.created_at)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="margin-top:10px;text-align:center">
+      <button class="btn-secondary" onclick="saveAllPicking()" style="font-size:12px;padding:8px 20px">💾 儲存所有狀態變更</button>
+      <div id="save-all-msg" style="display:none;font-size:12px;color:#2E7D32;margin-top:6px">✓ 已儲存</div>
+    </div>`;
+}
+
+async function saveAllPicking() {
+  const btn = document.querySelector('#save-all-msg');
+  for (const o of orders) {
+    const itemData = getItemPickingData(o.nickname, o.id);
+    if (itemData.status && itemData.status !== (o.status || 'pending')) {
+      await sb.from('orders').update({ status: itemData.status }).eq('id', o.id);
+    }
+  }
+  if (btn) { btn.style.display = 'block'; setTimeout(() => btn.style.display = 'none', 3000); }
+  loadOrders();
+}
+
 function renderShipping() {
   const groups = groupByNickname();
   const names = Object.keys(groups);
@@ -817,6 +881,7 @@ function renderShipping() {
   const current = sel ? sel.value : '';
   if (sel) {
     sel.innerHTML = '<option value="">-- 選擇客人 --</option>' +
+      '<option value="__ALL__" ' + (current==='__ALL__'?'selected':'') + '>📋 顯示全部商品（按時間排序）</option>' +
       names.map(n => `<option value="${esc(n)}" ${n===current?'selected':''}>${esc(n)}</option>`).join('');
   }
 
