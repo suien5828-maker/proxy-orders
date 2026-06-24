@@ -147,6 +147,10 @@ tr:nth-child(even) td { background: #FAFAF8; }
         <div class="form-group"><label>商品 *</label><input type="text" id="f-item" placeholder="如：上衣、襪子、零食"></div>
         <div class="form-group"><label>尺寸/規格</label><input type="text" id="f-size" placeholder="如：粉100、草莓口味、藍S"></div>
         <div class="form-group"><label>數量</label><input type="number" id="f-quantity" placeholder="如：1、2" min="1"></div>
+        <div class="form-group"><label>日幣原價 ¥</label><input type="number" id="f-price-jpy" placeholder="如：1500" oninput="calcFormTwd()"></div>
+        <div class="form-group"><label>匯率（¥1=NT$?）</label><input type="number" id="f-rate" step="0.01" placeholder="如：0.22" oninput="calcFormTwd()"></div>
+        <div class="form-group"><label>換算台幣（自動）</label><input type="text" id="f-calc-twd" placeholder="自動計算" readonly style="background:#F5F3EF;color:#6B6B80"></div>
+        <div class="form-group"><label>台幣售價（直接填）</label><input type="number" id="f-price-twd" placeholder="填了優先使用"></div>
         <div class="form-group full"><label>廠商</label><input type="text" id="f-vendor" placeholder="廠商名稱"></div>
       </div>
       <div class="error" id="form-error" style="display:none"></div>
@@ -424,13 +428,26 @@ function removeImage() {
   document.getElementById('ai-result').style.display = 'none';
 }
 
+function calcFormTwd() {
+  const jpy = parseFloat(document.getElementById('f-price-jpy').value) || 0;
+  const rate = parseFloat(document.getElementById('f-rate').value) || 0;
+  const calc = document.getElementById('f-calc-twd');
+  if (jpy && rate) {
+    calc.value = 'NT$' + Math.round(jpy * rate).toLocaleString();
+  } else {
+    calc.value = '';
+  }
+}
+
 async function addOrder() {
   const nickname = document.getElementById('f-nickname').value.trim();
   const item = document.getElementById('f-item').value.trim();
   const size = document.getElementById('f-size').value.trim();
   const quantity = document.getElementById('f-quantity').value.trim();
   const vendor = document.getElementById('f-vendor').value.trim();
-  const order_no = null; // 訂單編號在出貨單產生
+  const price_jpy = parseFloat(document.getElementById('f-price-jpy').value) || 0;
+  const rate = parseFloat(document.getElementById('f-rate').value) || 0;
+  const price_twd = parseFloat(document.getElementById('f-price-twd').value) || 0;
   const errEl = document.getElementById('form-error');
   const successEl = document.getElementById('form-success');
   const btn = document.getElementById('add-btn');
@@ -447,12 +464,12 @@ async function addOrder() {
       image_url = urlData.publicUrl;
     }
   }
-  const { error } = await sb.from('orders').insert([{ nickname, item, size, quantity, vendor, image_url, trip: currentTrip }]);
+  const { error } = await sb.from('orders').insert([{ nickname, item, size, quantity, vendor, image_url, trip: currentTrip, price_jpy, rate, price_twd }]);
   btn.disabled = false; btn.textContent = '+ 加入訂單';
   if (error) { errEl.textContent = '儲存失敗：' + error.message; errEl.style.display = 'block'; return; }
   successEl.textContent = '✓ 訂單已儲存！'; successEl.style.display = 'block';
   setTimeout(() => successEl.style.display = 'none', 4000);
-  ['f-nickname','f-item','f-size','f-quantity','f-vendor'].forEach(id => document.getElementById(id).value = '');
+  ['f-nickname','f-item','f-size','f-quantity','f-vendor','f-price-jpy','f-rate','f-price-twd','f-calc-twd'].forEach(id => document.getElementById(id).value = '');
   removeImage(); loadOrders();
 }
 
