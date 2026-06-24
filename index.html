@@ -841,6 +841,15 @@ function renderPickingAll() {
               <span style="font-weight:600;color:#E8A87C">${esc(o.nickname)}</span>
               ${o.size ? `　${esc(o.size)}` : ''}　數量：${o.quantity||1}
             </div>
+            <div style="font-size:12px;color:#6B6B80;margin-top:2px">
+              ${o.price_jpy > 0 ? `¥${Number(o.price_jpy).toLocaleString()}` : ''}
+              ${(() => {
+                const twd = (pd.price_twd && parseFloat(pd.price_twd) > 0) ? parseFloat(pd.price_twd) :
+                            (o.price_twd && o.price_twd > 0) ? o.price_twd :
+                            (o.price_jpy && o.rate) ? o.price_jpy * o.rate : 0;
+                return twd > 0 ? `　<b style="color:#1A1A2E">NT$${Math.round(twd).toLocaleString()}</b>` : '';
+              })()}
+            </div>
             <div style="margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <span style="display:inline-block;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;background:${s.bg};color:${s.color}">${s.label}</span>
               <select style="border:1.5px solid #DDD8D0;border-radius:6px;padding:3px 8px;font-size:12px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit"
