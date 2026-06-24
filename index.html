@@ -941,20 +941,32 @@ function calcAllTwd(id, container) {
 
 async function saveAllPicking() {
   const btn = document.getElementById('save-all-msg');
+  const saveBtn = document.querySelector('[onclick="saveAllPicking()"]');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '儲存中…'; }
+
+  const keys = Object.keys(pendingEdits);
+  if (keys.length === 0) {
+    alert('沒有偵測到變更，請確認有修改欄位後再按儲存');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 儲存所有變更'; }
+    return;
+  }
+
   const allO = orders;
-  for (const id of Object.keys(pendingEdits)) {
+  let saved = 0;
+  for (const id of keys) {
     const edits = pendingEdits[id];
-    const o = allO.find(x => x.id === parseInt(id));
-    if (!o || !Object.keys(edits).length) continue;
-    await sb.from('orders').update({
+    if (!Object.keys(edits).length) continue;
+    const { error } = await sb.from('orders').update({
       ...(edits.status !== undefined ? { status: edits.status } : {}),
       ...(edits.price_jpy !== undefined ? { price_jpy: edits.price_jpy } : {}),
       ...(edits.rate !== undefined ? { rate: edits.rate } : {}),
       ...(edits.price_twd !== undefined ? { price_twd: edits.price_twd } : {}),
     }).eq('id', parseInt(id));
+    if (!error) saved++;
   }
   pendingEdits = {};
-  if (btn) { btn.style.display = 'block'; setTimeout(() => btn.style.display = 'none', 3000); }
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 儲存所有變更'; }
+  if (btn) { btn.textContent = `✓ 已儲存 ${saved} 筆`; btn.style.display = 'block'; setTimeout(() => btn.style.display = 'none', 3000); }
   loadOrders();
 }
 
