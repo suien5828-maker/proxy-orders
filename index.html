@@ -966,6 +966,7 @@ function renderPickingAll() {
     });
     html += '</select>';
     html += '<span style="font-size:11px;color:#B0A8A0;margin-left:auto">' + formatDate(o.created_at) + '</span>';
+    html += '<button onclick="deleteOrderFromPicking(' + o.id + ')" style="background:transparent;border:1px solid #E0BCBC;border-radius:6px;color:#D64045;font-size:11px;padding:3px 8px;cursor:pointer;font-family:inherit;flex-shrink:0">✕</button>';
     html += '</div>';
 
     html += '</div></div></div>';
