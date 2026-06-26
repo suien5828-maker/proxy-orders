@@ -205,7 +205,7 @@ tr:nth-child(even) td { background: #FAFAF8; }
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>圖片</th><th>訂單編號</th><th>日期</th><th>暱稱</th><th>商品</th><th>尺寸</th><th>數量</th><th>廠商</th><th>日幣</th><th>台幣</th><th></th></tr>
+            <tr><th>圖片</th><th>訂單編號</th><th>日期</th><th>暱稱</th><th>商品</th><th>尺寸</th><th>數量</th><th>廠商</th><th>日幣</th><th>台幣</th><th>狀態</th><th></th></tr>
           </thead>
           <tbody id="order-tbody"></tbody>
         </table>
@@ -522,6 +522,14 @@ async function addOrder() {
   removeImage(); loadOrders();
 }
 
+async function deleteOrderFromPicking(id) {
+  const pwd = prompt('請輸入刪除密碼：');
+  if (pwd !== '888') { alert('密碼錯誤！'); return; }
+  const { error } = await sb.from('orders').delete().eq('id', Number(id));
+  if (error) { alert('刪除失敗：' + error.message); return; }
+  loadOrders();
+}
+
 async function deleteOrder(id) {
   const pwd = prompt('請輸入刪除密碼：');
   if (pwd !== '888') { alert('密碼錯誤！'); return; }
@@ -570,6 +578,7 @@ function renderTable() {
         if (o.price_jpy && o.rate) return 'NT$'+Math.round(o.price_jpy * o.rate).toLocaleString();
         return '-';
       })()}</td>
+      <td>${(() => { const s = getStatusOptP1(o.status||'pending'); return `<span style="display:inline-block;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;background:${s.bg};color:${s.color}">${s.label}</span>`; })()}</td>
       <td><button class="del-btn" onclick="deleteOrder(${o.id})">×</button></td>
     </tr>`).join('');
 }
