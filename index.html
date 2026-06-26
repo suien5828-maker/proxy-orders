@@ -517,7 +517,8 @@ async function addOrder() {
   if (error) { errEl.textContent = '儲存失敗：' + error.message; errEl.style.display = 'block'; return; }
   successEl.textContent = '✓ 訂單已儲存！'; successEl.style.display = 'block';
   setTimeout(() => successEl.style.display = 'none', 4000);
-  ['f-nickname','f-item','f-size','f-quantity','f-vendor','f-price-jpy','f-rate','f-price-twd','f-calc-twd'].forEach(id => document.getElementById(id).value = '');
+  ['f-nickname','f-item','f-size','f-quantity','f-vendor','f-price-jpy','f-price-twd','f-calc-twd'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-rate').value = '0.3';
   document.getElementById('f-status').value = 'pending';
   removeImage(); loadOrders();
 }
