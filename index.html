@@ -145,9 +145,9 @@ tr:nth-child(even) td { background: #FAFAF8; }
       <div class="form-grid">
         <div class="form-group"><label>暱稱 *</label><input type="text" id="f-nickname" placeholder="客人暱稱"></div>
         <div class="form-group"><label>商品 *</label><input type="text" id="f-item" placeholder="如：上衣、襪子、零食"></div>
-        <div class="form-group"><label>尺寸/規格</label><input type="text" id="f-size" placeholder="如：粉100、草莓口味、藍S"></div>
-        <div class="form-group"><label>數量</label><input type="number" id="f-quantity" placeholder="如：1、2" min="1"></div>
         <div class="form-group"><label>日幣原價 ¥</label><input type="number" id="f-price-jpy" placeholder="如：1500" oninput="calcFormTwd()"></div>
+        <div class="form-group"><label>數量</label><input type="number" id="f-quantity" placeholder="如：1、2" min="1"></div>
+        <div class="form-group"><label>尺寸/規格</label><input type="text" id="f-size" placeholder="如：粉100、草莓口味、藍S"></div>
         <div class="form-group"><label>匯率（¥1=NT$?）</label><input type="number" id="f-rate" step="0.01" value="0.3" placeholder="如：0.22" oninput="calcFormTwd()"></div>
         <div class="form-group"><label>換算台幣（自動）</label><input type="text" id="f-calc-twd" placeholder="自動計算" readonly style="background:#F5F3EF;color:#6B6B80"></div>
         <div class="form-group"><label>台幣售價（直接填）</label><input type="number" id="f-price-twd" placeholder="填了優先使用"></div>
