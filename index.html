@@ -739,7 +739,7 @@ function renderPicking() {
   if (sel) {
     sel.innerHTML = '<option value="">-- 選擇客人 --</option>' +
       '<option value="__ALL__" ' + (current==='__ALL__'?'selected':'') + '>📋 顯示全部商品（按時間排序）</option>' +
-      names.map(n => `<option value="${esc(n)}" ${n===current?'selected':''}>${esc(n)}</option>`).join('');
+      [...names].sort((a,b) => a.localeCompare(b, 'zh-TW')).map(n => `<option value="${esc(n)}" ${n===current?'selected':''}>${esc(n)}</option>`).join('');
   }
 
   renderPickingForCustomer();
@@ -1055,7 +1055,7 @@ function renderShipping() {
   if (sel) {
     sel.innerHTML = '<option value="">-- 選擇客人 --</option>' +
       '<option value="__ALL__" ' + (current==='__ALL__'?'selected':'') + '>📋 顯示全部商品（按時間排序）</option>' +
-      names.map(n => `<option value="${esc(n)}" ${n===current?'selected':''}>${esc(n)}</option>`).join('');
+      [...names].sort((a,b) => a.localeCompare(b, 'zh-TW')).map(n => `<option value="${esc(n)}" ${n===current?'selected':''}>${esc(n)}</option>`).join('');
   }
 
   // Update trip revenue select
