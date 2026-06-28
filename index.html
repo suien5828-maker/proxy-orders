@@ -400,16 +400,21 @@ async function loadOrders() {
   updateTripUI();
   // Populate pickingData from DB values
   orders.forEach(o => {
-    if (!pickingData[o.nickname]) pickingData[o.nickname] = { shipping: '', extra: '', discount: '', note: '', items: {} };
-    if (o.shipping) pickingData[o.nickname].shipping = o.shipping;
-    if (o.extra) pickingData[o.nickname].extra = o.extra;
-    if (o.discount) pickingData[o.nickname].discount = o.discount;
-    if (o.note) pickingData[o.nickname].note = o.note;
-    if (!pickingData[o.nickname].items[o.id]) pickingData[o.nickname].items[o.id] = { price_jpy: '', rate: '' };
-    if (o.price_jpy) pickingData[o.nickname].items[o.id].price_jpy = o.price_jpy;
-    if (o.rate) pickingData[o.nickname].items[o.id].rate = o.rate;
-    if (o.price_twd) pickingData[o.nickname].items[o.id].price_twd = o.price_twd;
-    if (o.status) pickingData[o.nickname].items[o.id].status = o.status;
+    const key = o.nickname.toLowerCase();
+    // Find display name
+    const displayName = o.nickname;
+    if (!pickingData[displayName]) pickingData[displayName] = { shipping: '', extra: '', discount: '', note: '', items: {} };
+    if (o.shipping) pickingData[displayName].shipping = o.shipping;
+    if (o.extra) pickingData[displayName].extra = o.extra;
+    if (o.discount) pickingData[displayName].discount = o.discount;
+    if (o.note) pickingData[displayName].note = o.note;
+    // Always initialize item with all fields from DB
+    pickingData[displayName].items[o.id] = {
+      price_jpy: o.price_jpy || '',
+      rate: o.rate || '',
+      price_twd: o.price_twd || '',
+      status: o.status || 'pending',
+    };
   });
   renderTable();
   renderPicking();
