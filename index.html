@@ -720,20 +720,23 @@ async function savePicking(nickname) {
   for (const o of items) {
     const itemData = getItemPickingData(nickname, o.id);
     const edits = pendingEdits[o.id] || {};
-    await sb.from('orders').update({
-      price_jpy: parseFloat(itemData.price_jpy) || 0,
-      rate: parseFloat(itemData.rate) || 0,
-      price_twd: parseFloat(itemData.price_twd) || 0,
-      status: itemData.status || 'pending',
+    // Only update fields that were actually changed in this session
+    const updateData = {
       shipping: parseFloat(pd.shipping) || 0,
       extra: parseFloat(pd.extra) || 0,
       discount: parseFloat(pd.discount) || 0,
       note: pd.note || '',
-      ...(edits.item ? { item: edits.item } : {}),
-      ...(edits.nickname ? { nickname: edits.nickname } : {}),
-      ...(edits.size !== undefined ? { size: edits.size } : {}),
-      ...(edits.quantity ? { quantity: edits.quantity } : {}),
-    }).eq('id', o.id);
+    };
+    // Only include price/status if user actually touched them
+    if (itemData.price_jpy !== '' && itemData.price_jpy !== undefined) updateData.price_jpy = parseFloat(itemData.price_jpy) || 0;
+    if (itemData.rate !== '' && itemData.rate !== undefined) updateData.rate = parseFloat(itemData.rate) || 0;
+    if (itemData.price_twd !== '' && itemData.price_twd !== undefined) updateData.price_twd = parseFloat(itemData.price_twd) || 0;
+    if (itemData.status && itemData.status !== o.status) updateData.status = itemData.status;
+    if (edits.item) updateData.item = edits.item;
+    if (edits.nickname) updateData.nickname = edits.nickname;
+    if (edits.size !== undefined) updateData.size = edits.size;
+    if (edits.quantity) updateData.quantity = edits.quantity;
+    await sb.from('orders').update(updateData).eq('id', o.id);
   }
 
   // Clear pending edits for this group
