@@ -720,23 +720,27 @@ async function savePicking(nickname) {
   for (const o of items) {
     const itemData = getItemPickingData(nickname, o.id);
     const edits = pendingEdits[o.id] || {};
-    // Only update fields that were actually changed in this session
-    const updateData = {
-      shipping: parseFloat(pd.shipping) || 0,
-      extra: parseFloat(pd.extra) || 0,
-      discount: parseFloat(pd.discount) || 0,
-      note: pd.note || '',
-    };
-    // Only include price/status if user actually touched them
+    // Only update fields that were actually changed
+    const updateData = {};
+    // Group-level fields - only write if different from DB
+    if (pd.shipping !== '' && pd.shipping !== undefined) updateData.shipping = parseFloat(pd.shipping) || 0;
+    if (pd.extra !== '' && pd.extra !== undefined) updateData.extra = parseFloat(pd.extra) || 0;
+    if (pd.discount !== '' && pd.discount !== undefined) updateData.discount = parseFloat(pd.discount) || 0;
+    if (pd.note !== '' && pd.note !== undefined) updateData.note = pd.note || '';
+    // Item-level fields - only write if user touched them
     if (itemData.price_jpy !== '' && itemData.price_jpy !== undefined) updateData.price_jpy = parseFloat(itemData.price_jpy) || 0;
     if (itemData.rate !== '' && itemData.rate !== undefined) updateData.rate = parseFloat(itemData.rate) || 0;
     if (itemData.price_twd !== '' && itemData.price_twd !== undefined) updateData.price_twd = parseFloat(itemData.price_twd) || 0;
+    // Status - only write if actually changed from DB value
     if (itemData.status && itemData.status !== o.status) updateData.status = itemData.status;
+    // Pending edits (name, size, qty, nickname)
     if (edits.item) updateData.item = edits.item;
     if (edits.nickname) updateData.nickname = edits.nickname;
     if (edits.size !== undefined) updateData.size = edits.size;
     if (edits.quantity) updateData.quantity = edits.quantity;
-    await sb.from('orders').update(updateData).eq('id', o.id);
+    if (Object.keys(updateData).length > 0) {
+      await sb.from('orders').update(updateData).eq('id', o.id);
+    }
   }
 
   // Clear pending edits for this group
