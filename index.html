@@ -229,7 +229,7 @@ tr:nth-child(even) td { background: #FAFAF8; }
     </div>
     <!-- 未填價格提醒 -->
     <div id="picking-no-price-alert" style="display:none;background:#FFF3E0;border:1px solid #FFB74D;border-radius:10px;padding:14px 16px;margin-bottom:16px">
-      <div style="font-weight:700;color:#E65100;font-size:13px;margin-bottom:10px">⚠️ 以下客人有商品尚未輸入價格</div>
+      <div style="font-weight:700;color:#E65100;font-size:13px;margin-bottom:10px">⚠️ 以下客人有待處理商品（未填價格或狀態為處理中）</div>
       <select id="picking-no-price-select" onchange="showPickingNoPriceDetails()"
         style="width:100%;border:1.5px solid #FFB74D;border-radius:8px;padding:9px 12px;font-size:13px;color:#E65100;background:#fff;outline:none;font-family:inherit;margin-bottom:8px">
         <option value="">-- 選擇客人查看詳細 --</option>
@@ -250,7 +250,7 @@ tr:nth-child(even) td { background: #FAFAF8; }
       </div>
       <!-- 未填價格提醒 -->
       <div id="no-price-alert" style="display:none;background:#FFF3E0;border:1px solid #FFB74D;border-radius:10px;padding:14px 16px;margin-bottom:16px">
-        <div style="font-weight:700;color:#E65100;font-size:13px;margin-bottom:10px">⚠️ 以下客人有商品尚未輸入價格</div>
+        <div style="font-weight:700;color:#E65100;font-size:13px;margin-bottom:10px">⚠️ 以下客人有待處理商品（未填價格或狀態為處理中）</div>
         <select id="no-price-select" onchange="showNoPriceDetails()"
           style="width:100%;border:1.5px solid #FFB74D;border-radius:8px;padding:9px 12px;font-size:13px;color:#E65100;background:#fff;outline:none;font-family:inherit;margin-bottom:8px">
           <option value="">-- 選擇客人查看詳細 --</option>
@@ -764,26 +764,28 @@ function renderPicking() {
 
   renderPickingForCustomer();
 
-  // Check for missing prices in picking tab
-  const noPricePicking = orders.filter(o => {
+  // Check for missing prices OR pending status
+  const needsAttention = orders.filter(o => {
     const pd = getItemPickingData(o.nickname, o.id);
     const hasTwd = (pd.price_twd && parseFloat(pd.price_twd) > 0) || (o.price_twd && parseFloat(o.price_twd) > 0);
-    const hasJpy = (parseFloat(o.price_jpy) > 0) || (parseFloat(pd.price_jpy) > 0);
-    return !hasTwd && !hasJpy && o.status !== 'outofstock';
+    const hasJpy = parseFloat(o.price_jpy) > 0 || parseFloat(pd.price_jpy) > 0;
+    const missingPrice = !hasTwd && !hasJpy && o.status !== 'outofstock';
+    const isPending = (pd.status || o.status || 'pending') === 'pending';
+    return missingPrice || isPending;
   });
   const pickingAlertEl = document.getElementById('picking-no-price-alert');
   const pickingNoPriceSel = document.getElementById('picking-no-price-select');
   if (pickingAlertEl && pickingNoPriceSel) {
-    if (noPricePicking.length > 0) {
+    if (needsAttention.length > 0) {
       pickingAlertEl.style.display = 'block';
       const groups = {};
-      noPricePicking.forEach(o => {
+      needsAttention.forEach(o => {
         if (!groups[o.nickname]) groups[o.nickname] = [];
         groups[o.nickname].push(o);
       });
       const groupNames = Object.keys(groups).sort((a,b) => a.localeCompare(b,'zh-TW'));
       pickingNoPriceSel.innerHTML = '<option value="">-- 選擇客人查看詳細 (' + groupNames.length + ' 位) --</option>' +
-        groupNames.map(n => `<option value="${esc(n)}">${esc(n)}（${groups[n].length} 件）</option>`).join('');
+        groupNames.map(n => `<option value="${esc(n)}">${esc(n)}（${groups[n].length} 件待處理）</option>`).join('');
       window._pickingNoPriceGroups = groups;
     } else {
       pickingAlertEl.style.display = 'none';
@@ -797,13 +799,24 @@ function showPickingNoPriceDetails() {
   if (!name || !window._pickingNoPriceGroups) { detailEl.style.display = 'none'; return; }
   const items = window._pickingNoPriceGroups[name] || [];
   detailEl.style.display = 'flex';
-  detailEl.innerHTML = items.map(o =>
-    `<div style="background:#fff;border-radius:8px;padding:8px 12px;border:1px solid #FFB74D;display:flex;justify-content:space-between;align-items:center">
-      <div><b>${esc(o.item)}</b>　${o.size?esc(o.size)+'　':''}數量：${o.quantity||1}</div>
+  detailEl.innerHTML = items.map(o => {
+    const pd = getItemPickingData(o.nickname, o.id);
+    const hasTwd = (pd.price_twd && parseFloat(pd.price_twd) > 0) || (o.price_twd && parseFloat(o.price_twd) > 0);
+    const hasJpy = parseFloat(o.price_jpy) > 0 || parseFloat(pd.price_jpy) > 0;
+    const missingPrice = !hasTwd && !hasJpy && o.status !== 'outofstock';
+    const isPending = (pd.status || o.status || 'pending') === 'pending';
+    const tags = [];
+    if (missingPrice) tags.push('<span style="background:#FFEBEE;color:#D64045;border-radius:4px;padding:1px 6px;font-size:10px">未填價格</span>');
+    if (isPending) tags.push('<span style="background:#F0F0F8;color:#A0A0B8;border-radius:4px;padding:1px 6px;font-size:10px">處理中</span>');
+    return `<div style="background:#fff;border-radius:8px;padding:8px 12px;border:1px solid #FFB74D;display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div style="flex:1">
+        <div style="font-weight:600;color:#1A1A2E;font-size:13px">${esc(o.item)}${o.size?'　'+esc(o.size):''}</div>
+        <div style="display:flex;gap:4px;margin-top:3px">${tags.join('')}</div>
+      </div>
       <button onclick="document.getElementById('picking-customer-select').value='${esc(name)}'; renderPickingForCustomer()"
         style="background:#E65100;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit;white-space:nowrap">前往整理</button>
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
 }
 
 function renderPickingForCustomer() {
