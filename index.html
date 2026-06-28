@@ -240,9 +240,13 @@ tr:nth-child(even) td { background: #FAFAF8; }
         <button class="btn-secondary" onclick="printShippingForCustomer()">🖨 列印</button>
       </div>
       <!-- 未填價格提醒 -->
-      <div id="no-price-alert" style="display:none;background:#FFF3E0;border:1px solid #FFB74D;border-radius:10px;padding:12px 16px;margin-bottom:16px">
-        <div style="font-weight:700;color:#E65100;font-size:13px;margin-bottom:8px">⚠️ 以下商品尚未輸入價格</div>
-        <div id="no-price-list" style="font-size:12px;color:#E65100;display:flex;flex-direction:column;gap:4px"></div>
+      <div id="no-price-alert" style="display:none;background:#FFF3E0;border:1px solid #FFB74D;border-radius:10px;padding:14px 16px;margin-bottom:16px">
+        <div style="font-weight:700;color:#E65100;font-size:13px;margin-bottom:10px">⚠️ 以下客人有商品尚未輸入價格</div>
+        <select id="no-price-select" onchange="showNoPriceDetails()"
+          style="width:100%;border:1.5px solid #FFB74D;border-radius:8px;padding:9px 12px;font-size:13px;color:#E65100;background:#fff;outline:none;font-family:inherit;margin-bottom:8px">
+          <option value="">-- 選擇客人查看詳細 --</option>
+        </select>
+        <div id="no-price-detail" style="display:none;font-size:12px;color:#E65100;display:flex;flex-direction:column;gap:6px"></div>
       </div>
       <!-- 選擇客人 -->
       <div style="background:#fff;border-radius:12px;padding:16px;border:1px solid #E8E4DF;margin-bottom:16px">
@@ -1057,7 +1061,15 @@ async function saveAllPicking() {
 
 function renderPickingPending() {
   const pendingOrders = [...orders]
-    .filter(o => (getItemPickingData(o.nickname, o.id).status || o.status || 'pending') === 'pending')
+    .filter(o => {
+      const pd = getItemPickingData(o.nickname, o.id);
+      const isPending = (pd.status || o.status || 'pending') === 'pending';
+      const missingPrice = !(pd.price_twd && parseFloat(pd.price_twd) > 0) &&
+                           !(o.price_twd && o.price_twd > 0) &&
+                           !(o.price_jpy && parseFloat(o.price_jpy) > 0) &&
+                           !(pd.price_jpy && parseFloat(pd.price_jpy) > 0);
+      return isPending || missingPrice;
+    })
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
   const container = document.getElementById('picking-cards');
@@ -1087,13 +1099,38 @@ function renderPickingPending() {
     html += '<div style="font-size:12px;color:#6B6B80"><span style="font-weight:600;color:#E8A87C">' + esc(o.nickname) + '</span>';
     if (o.size) html += '　' + esc(o.size);
     html += '　數量：' + (o.quantity||1) + '</div>';
+    // Price fields
+    const pdItem = getItemPickingData(o.nickname, o.id);
+    const hasPrice = (pdItem.price_twd && parseFloat(pdItem.price_twd) > 0) ||
+                     (o.price_twd && o.price_twd > 0) ||
+                     (o.price_jpy && parseFloat(o.price_jpy) > 0);
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:8px">';
+    html += '<div><div style="font-size:10px;color:#6B6B80;margin-bottom:2px">日幣 ¥' + (hasPrice?'':' ⚠️') + '</div>';
+    html += '<input type="number" value="' + (o.price_jpy||pdItem.price_jpy||'') + '" placeholder="1500" data-id="' + o.id + '" data-field="price_jpy"';
+    html += ' style="width:100%;border:1.5px solid ' + (hasPrice?'#DDD8D0':'#FFB74D') + ';border-radius:6px;padding:5px 8px;font-size:12px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit"';
+    html += ' oninput="onPickingAllInput(this)"></div>';
+    html += '<div><div style="font-size:10px;color:#6B6B80;margin-bottom:2px">匯率</div>';
+    html += '<input type="number" step="0.01" value="' + (o.rate||pdItem.rate||'0.3') + '" placeholder="0.3" data-id="' + o.id + '" data-field="rate"';
+    html += ' style="width:100%;border:1.5px solid #DDD8D0;border-radius:6px;padding:5px 8px;font-size:12px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit"';
+    html += ' oninput="onPickingAllInput(this)"></div>';
+    html += '<div><div style="font-size:10px;color:#6B6B80;margin-bottom:2px">換算台幣</div>';
+    const calcTwd2 = (o.price_jpy && o.rate) ? Math.round(o.price_jpy * o.rate) : 0;
+    html += '<input type="text" readonly id="calc-twd-' + o.id + '" value="' + (calcTwd2 > 0 ? 'NT$'+calcTwd2.toLocaleString() : '') + '"';
+    html += ' style="width:100%;border:1.5px solid #E8E4DF;border-radius:6px;padding:5px 8px;font-size:12px;color:#6B6B80;background:#F5F3EF;outline:none;font-family:inherit"></div>';
+    html += '<div><div style="font-size:10px;color:#6B6B80;margin-bottom:2px">直接台幣</div>';
+    html += '<input type="number" value="' + (o.price_twd||pdItem.price_twd||'') + '" placeholder="直接填" data-id="' + o.id + '" data-field="price_twd"';
+    html += ' style="width:100%;border:1.5px solid #DDD8D0;border-radius:6px;padding:5px 8px;font-size:12px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit"';
+    html += ' oninput="onPickingAllInput(this)"></div>';
+    html += '</div>';
     html += '<div style="margin-top:6px;display:flex;gap:8px;align-items:center">';
-    html += '<span style="background:#F0F0F8;color:#A0A0B8;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">處理中</span>';
+    const curStatus = pdItem.status || o.status || 'pending';
+    const curOpt = STATUS_OPTIONS_P1.find(s => s.value === curStatus) || STATUS_OPTIONS_P1[0];
+    html += '<span style="background:' + curOpt.bg + ';color:' + curOpt.color + ';border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">' + curOpt.label + '</span>';
     html += '<select data-id="' + o.id + '" data-nickname="' + esc(o.nickname) + '" data-field="status"';
     html += ' style="border:1.5px solid #DDD8D0;border-radius:6px;padding:3px 8px;font-size:12px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit"';
     html += ' onchange="onPickingAllInput(this)">';
     STATUS_OPTIONS_P1.forEach(function(st) {
-      html += '<option value="' + st.value + '"' + (st.value==='pending'?' selected':'') + '>' + st.label + '</option>';
+      html += '<option value="' + st.value + '"' + (st.value===curStatus?' selected':'') + '>' + st.label + '</option>';
     });
     html += '</select>';
     html += '<span style="font-size:11px;color:#B0A8A0;margin-left:auto">' + formatDate(o.created_at) + '</span>';
@@ -1135,21 +1172,29 @@ function renderShipping() {
 
   renderShippingForCustomer();
 
-  // Check for missing prices
+  // Check for missing prices - group by nickname
   const noPrice = orders.filter(o => {
     const pd = getItemPickingData(o.nickname, o.id);
     const hasTwd = (pd.price_twd && parseFloat(pd.price_twd) > 0) || (o.price_twd && o.price_twd > 0);
-    const hasJpy = o.price_jpy && o.rate;
+    const hasJpy = (o.price_jpy || pd.price_jpy) && (o.rate || pd.rate);
     return !hasTwd && !hasJpy && o.status !== 'outofstock';
   });
   const alertEl = document.getElementById('no-price-alert');
-  const listEl = document.getElementById('no-price-list');
-  if (alertEl && listEl) {
+  const noPriceSel = document.getElementById('no-price-select');
+  if (alertEl && noPriceSel) {
     if (noPrice.length > 0) {
       alertEl.style.display = 'block';
-      listEl.innerHTML = noPrice.map(o =>
-        `<div>・<b>${esc(o.nickname)}</b>　${esc(o.item)}　${o.size?esc(o.size):''}　數量：${o.quantity||1}</div>`
-      ).join('');
+      // Group by nickname
+      const noPriceGroups = {};
+      noPrice.forEach(o => {
+        if (!noPriceGroups[o.nickname]) noPriceGroups[o.nickname] = [];
+        noPriceGroups[o.nickname].push(o);
+      });
+      const noPriceNames = Object.keys(noPriceGroups).sort((a,b) => a.localeCompare(b,'zh-TW'));
+      noPriceSel.innerHTML = '<option value="">-- 選擇客人查看詳細 (' + noPriceNames.length + ' 位) --</option>' +
+        noPriceNames.map(n => `<option value="${esc(n)}">${esc(n)}（${noPriceGroups[n].length} 件）</option>`).join('');
+      // Store for detail view
+      window._noPriceGroups = noPriceGroups;
     } else {
       alertEl.style.display = 'none';
     }
@@ -1232,6 +1277,19 @@ function renderShippingForCustomer() {
       </div>
     </div>`;
   }).join('');
+}
+
+function showNoPriceDetails() {
+  const name = document.getElementById('no-price-select').value;
+  const detailEl = document.getElementById('no-price-detail');
+  if (!name || !window._noPriceGroups) { detailEl.style.display = 'none'; return; }
+  const items = window._noPriceGroups[name] || [];
+  detailEl.style.display = 'flex';
+  detailEl.innerHTML = items.map(o =>
+    `<div style="background:#fff;border-radius:8px;padding:8px 12px;border:1px solid #FFB74D">
+      <b>${esc(o.item)}</b>　${o.size?esc(o.size)+'　':''}數量：${o.quantity||1}
+    </div>`
+  ).join('');
 }
 
 function printShippingForCustomer() {
