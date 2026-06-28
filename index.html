@@ -1244,16 +1244,17 @@ function renderShipping() {
   // Check for missing prices - group by nickname
   const noPrice = orders.filter(o => {
     const pd = getItemPickingData(o.nickname, o.id);
-    const hasTwd = (pd.price_twd && parseFloat(pd.price_twd) > 0) || (o.price_twd && o.price_twd > 0);
-    const hasJpy = (o.price_jpy || pd.price_jpy) && (o.rate || pd.rate);
-    return !hasTwd && !hasJpy && o.status !== 'outofstock';
+    const hasTwd = (pd.price_twd && parseFloat(pd.price_twd) > 0) || (o.price_twd && parseFloat(o.price_twd) > 0);
+    const hasJpy = parseFloat(o.price_jpy) > 0 || parseFloat(pd.price_jpy) > 0;
+    const missingPrice = !hasTwd && !hasJpy && o.status !== 'outofstock';
+    const isPending = (pd.status || o.status || 'pending') === 'pending';
+    return missingPrice || isPending;
   });
   const alertEl = document.getElementById('no-price-alert');
   const noPriceSel = document.getElementById('no-price-select');
   if (alertEl && noPriceSel) {
     if (noPrice.length > 0) {
       alertEl.style.display = 'block';
-      // Group by nickname
       const noPriceGroups = {};
       noPrice.forEach(o => {
         if (!noPriceGroups[o.nickname]) noPriceGroups[o.nickname] = [];
@@ -1261,8 +1262,7 @@ function renderShipping() {
       });
       const noPriceNames = Object.keys(noPriceGroups).sort((a,b) => a.localeCompare(b,'zh-TW'));
       noPriceSel.innerHTML = '<option value="">-- 選擇客人查看詳細 (' + noPriceNames.length + ' 位) --</option>' +
-        noPriceNames.map(n => `<option value="${esc(n)}">${esc(n)}（${noPriceGroups[n].length} 件）</option>`).join('');
-      // Store for detail view
+        noPriceNames.map(n => `<option value="${esc(n)}">${esc(n)}（${noPriceGroups[n].length} 件待處理）</option>`).join('');
       window._noPriceGroups = noPriceGroups;
     } else {
       alertEl.style.display = 'none';
