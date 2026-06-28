@@ -396,7 +396,7 @@ async function loadOrders() {
   document.getElementById('loading-orders').style.display = 'none';
   if (error) { console.error(error); return; }
   window._allOrders = data || [];
-  orders = showArchived ? window._allOrders : window._allOrders.filter(o => (o.trip || '第1團') === currentTrip);
+  orders = showArchived ? window._allOrders : window._allOrders.filter(o => (o.trip || currentTrip) === currentTrip);
   updateTripUI();
   // Populate pickingData from DB values
   orders.forEach(o => {
@@ -690,15 +690,47 @@ function calcGroupTotal(nickname, items) {
   return itemsTotal + shipping + extra - discount;
 }
 
+// Debounce timers for auto-save
+const _saveTimers = {};
+
 function updatePickingField(nickname, field, val) {
   getPickingData(nickname)[field] = val;
   rerenderGroupTotal(nickname);
+  // Auto-save group fields to all orders of this nickname
+  clearTimeout(_saveTimers['group_' + nickname]);
+  _saveTimers['group_' + nickname] = setTimeout(async () => {
+    const groups = groupByNickname();
+    const items = groups[nickname] || [];
+    const pd = getPickingData(nickname);
+    for (const o of items) {
+      const updateData = {};
+      if (field === 'shipping') updateData.shipping = parseFloat(val) || 0;
+      if (field === 'extra') updateData.extra = parseFloat(val) || 0;
+      if (field === 'discount') updateData.discount = parseFloat(val) || 0;
+      if (field === 'note') updateData.note = val || '';
+      if (Object.keys(updateData).length > 0) {
+        await sb.from('orders').update(updateData).eq('id', o.id);
+      }
+    }
+  }, 1000);
 }
 
 function updateItemField(nickname, id, field, val) {
   getItemPickingData(nickname, id)[field] = val;
   rerenderItemTwd(nickname, id);
   rerenderGroupTotal(nickname);
+  // Auto-save item field to DB after 1 second
+  clearTimeout(_saveTimers['item_' + id + '_' + field]);
+  _saveTimers['item_' + id + '_' + field] = setTimeout(async () => {
+    const updateData = {};
+    if (field === 'price_jpy') updateData.price_jpy = parseFloat(val) || 0;
+    if (field === 'rate') updateData.rate = parseFloat(val) || 0;
+    if (field === 'price_twd') updateData.price_twd = parseFloat(val) || 0;
+    if (field === 'status') updateData.status = val;
+    if (Object.keys(updateData).length > 0) {
+      await sb.from('orders').update(updateData).eq('id', Number(id));
+    }
+  }, 1000);
 }
 
 function rerenderItemTwd(nickname, id) {
