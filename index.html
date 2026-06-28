@@ -716,6 +716,7 @@ async function savePicking(nickname) {
       discount: parseFloat(pd.discount) || 0,
       note: pd.note || '',
       ...(edits.item ? { item: edits.item } : {}),
+      ...(edits.nickname ? { nickname: edits.nickname } : {}),
       ...(edits.size !== undefined ? { size: edits.size } : {}),
       ...(edits.quantity ? { quantity: edits.quantity } : {}),
     }).eq('id', o.id);
@@ -812,6 +813,11 @@ function renderPickingForCustomer() {
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;padding:10px;background:#F9F7F5;border-radius:8px">
+          <div class="field-box" style="grid-column:1/-1">
+            <div class="field-lbl">暱稱</div>
+            <input class="field-inp" type="text" value="${esc(o.nickname)}"
+              oninput="pendingEdits[${o.id}]=pendingEdits[${o.id}]||{}; pendingEdits[${o.id}].nickname=this.value">
+          </div>
           <div class="field-box" style="grid-column:1/-1">
             <div class="field-lbl">商品名稱</div>
             <input class="field-inp" type="text" value="${esc(o.item)}"
