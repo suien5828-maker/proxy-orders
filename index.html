@@ -862,6 +862,25 @@ function showPaymentCustomer() {
   const nameKey = name.replace(/[^a-zA-Z0-9一-鿿]/g, '_');
 
   // Show customer orders summary
+  // Show success items first
+  const successItems = items.filter(o => o.status === 'success').sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+  const successItemsHtml = successItems.length ? `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;color:#2E7D32;margin-bottom:8px">✓ 採購成功商品</div>
+      ${successItems.map((o,i) => {
+        const twd = itemTotal(o);
+        return `<div style="display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #F0EDEA;background:${i%2?'#FAFAF8':'#fff'}">
+          ${o.image_url?`<img src="${esc(o.image_url)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0">`:
+            '<div style="width:56px;height:56px;background:#F0EDEA;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#CCC">無圖</div>'}
+          <div style="flex:1">
+            <div style="font-weight:600;color:#1A1A2E;font-size:13px">${esc(o.item)}</div>
+            <div style="font-size:11px;color:#6B6B80">${o.size?esc(o.size)+'　':''}數量：${o.quantity||1}</div>
+          </div>
+          <div style="font-weight:700;color:#1A1A2E;font-size:13px;flex-shrink:0">${twd>0?'NT$'+Math.round(twd).toLocaleString():'-'}</div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
   let html = `<div class="order-card" style="margin-bottom:12px">
     <div class="order-card-header" style="display:flex;justify-content:space-between;align-items:center">
       <div>
@@ -874,6 +893,7 @@ function showPaymentCustomer() {
       </div>
     </div>
     <div style="padding:14px 16px">
+      ${successItemsHtml}
       ${pmList.length > 0 ? `
       <div style="margin-bottom:12px;background:#F9F7F5;border-radius:8px;padding:10px 12px">
         <div style="font-size:11px;font-weight:600;color:#6B6B80;margin-bottom:6px">付款紀錄</div>
@@ -1034,9 +1054,41 @@ async function renderDoneList(orders) {
   const names = doneGroups.map(([n])=>n).sort((a,b)=>a.localeCompare(b,'zh-TW'));
   window._doneGroups = Object.fromEntries(doneGroups);
 
-  let html = `<div class="card no-print" style="margin-bottom:14px">
+  // Calculate payment method totals
+  const methodTotals = {};
+  let grandTotal = 0;
+  names.forEach(name => {
+    const pmList = paymentsCache[name.toLowerCase()] || [];
+    pmList.forEach(p => {
+      if (!methodTotals[p.method]) methodTotals[p.method] = 0;
+      methodTotals[p.method] += Number(p.amount);
+      grandTotal += Number(p.amount);
+    });
+  });
+
+  const methodColors = {
+    '轉帳': '#1565C0', 'LINE Pay': '#2E7D32', '賣貨便': '#E65100', '現金': '#6B6B80'
+  };
+
+  let html = `<div class="card" style="margin-bottom:14px">
+    <div style="font-weight:700;color:#1A1A2E;font-size:14px;margin-bottom:12px">💳 付款方式統計</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px">
+      ${Object.entries(methodTotals).map(([method, amt]) => `
+        <div style="background:#F5F3EF;border-radius:8px;padding:10px 12px;border:1px solid #E8E4DF">
+          <div style="font-size:11px;color:${methodColors[method]||'#6B6B80'};font-weight:600;margin-bottom:4px">${esc(method)}</div>
+          <div style="font-size:16px;font-weight:700;color:#1A1A2E">NT$${Math.round(amt).toLocaleString()}</div>
+        </div>`).join('')}
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid #E8A87C;padding-top:10px">
+      <span style="font-weight:700;color:#1A1A2E;font-size:14px">總收款金額</span>
+      <span style="font-weight:700;color:#E8A87C;font-size:20px">NT$${Math.round(grandTotal).toLocaleString()}</span>
+    </div>
+    <div style="font-size:11px;color:#A0A0B8;margin-top:4px">共 ${names.length} 位客人已付清</div>
+  </div>
+
+  <div class="card no-print" style="margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <label>選擇客人</label>
+      <label>選擇客人查看明細</label>
       <span style="font-size:12px;color:#6B6B80">共 ${names.length} 位已完成</span>
     </div>
     <select id="done-select" onchange="showDoneCustomer()" style="width:100%;border:1.5px solid #DDD8D0;border-radius:8px;padding:9px;font-size:14px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
