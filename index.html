@@ -525,6 +525,8 @@ function populateSelects(orders) {
     if (id === 'picking-select') {
       opts += `<option value="__ALL__" ${cur==='__ALL__'?'selected':''}>📋 全部商品（按時間）</option>`;
       opts += `<option value="__PENDING__" ${cur==='__PENDING__'?'selected':''}>⏳ 待處理商品</option>`;
+      opts += `<option value="__PAYMENT__" ${cur==='__PAYMENT__'?'selected':''}>💰 待付款訂單</option>`;
+      opts += `<option value="__DONE__" ${cur==='__DONE__'?'selected':''}>✅ 已完成訂單</option>`;
     }
     opts += names.map(n => `<option value="${esc(n)}" ${n===cur?'selected':''}>${esc(n)}</option>`).join('');
     sel.innerHTML = opts;
