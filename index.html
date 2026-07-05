@@ -181,16 +181,39 @@ td { padding: 7px 10px; border-bottom: 1px solid #F0EDEA; vertical-align: middle
       <div id="alert-detail" style="display:none;flex-direction:column;gap:6px"></div>
     </div>
 
-    <!-- 選客人 -->
-    <div class="card no-print">
-      <label style="margin-bottom:6px">選擇客人</label>
-      <select id="picking-select" onchange="onPickingSelect()" style="width:100%;border:1.5px solid #DDD8D0;border-radius:8px;padding:9px;font-size:14px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
-        <option value="">-- 選擇客人 --</option>
-      </select>
+    <!-- 子標籤 -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" class="no-print">
+      <button id="ptab-order" onclick="switchPickingTab('order')"
+        style="background:#1A1A2E;color:#E8A87C;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">📋 訂單整理</button>
+      <button id="ptab-payment" onclick="switchPickingTab('payment')"
+        style="background:#F5F3EF;color:#6B6B80;border:1.5px solid #DDD8D0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">💰 待付款</button>
+      <button id="ptab-done" onclick="switchPickingTab('done')"
+        style="background:#F5F3EF;color:#6B6B80;border:1.5px solid #DDD8D0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">✅ 已完成</button>
     </div>
 
-    <div class="loading" id="loading-picking" style="display:none">載入中…</div>
-    <div id="picking-content"></div>
+    <!-- 訂單整理區 -->
+    <div id="picking-order-section">
+      <div class="card no-print">
+        <label style="margin-bottom:6px">選擇客人</label>
+        <select id="picking-select" onchange="onPickingSelect()" style="width:100%;border:1.5px solid #DDD8D0;border-radius:8px;padding:9px;font-size:14px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
+          <option value="">-- 選擇客人 --</option>
+        </select>
+      </div>
+      <div class="loading" id="loading-picking" style="display:none">載入中…</div>
+      <div id="picking-content"></div>
+    </div>
+
+    <!-- 待付款區 -->
+    <div id="picking-payment-section" style="display:none">
+      <div class="loading" id="loading-payment">載入中…</div>
+      <div id="payment-content"></div>
+    </div>
+
+    <!-- 已完成區 -->
+    <div id="picking-done-section" style="display:none">
+      <div class="loading" id="loading-done">載入中…</div>
+      <div id="done-content"></div>
+    </div>
   </div>
 
   <!-- 出貨單 -->
@@ -525,8 +548,6 @@ function populateSelects(orders) {
     if (id === 'picking-select') {
       opts += `<option value="__ALL__" ${cur==='__ALL__'?'selected':''}>📋 全部商品（按時間）</option>`;
       opts += `<option value="__PENDING__" ${cur==='__PENDING__'?'selected':''}>⏳ 待處理商品</option>`;
-      opts += `<option value="__PAYMENT__" ${cur==='__PAYMENT__'?'selected':''}>💰 待付款訂單</option>`;
-      opts += `<option value="__DONE__" ${cur==='__DONE__'?'selected':''}>✅ 已完成訂單</option>`;
     }
     opts += names.map(n => `<option value="${esc(n)}" ${n===cur?'selected':''}>${esc(n)}</option>`).join('');
     sel.innerHTML = opts;
@@ -613,6 +634,22 @@ async function deleteOrder(id) {
   await loadOrders();
 }
 
+// ── Picking Tabs ──────────────────────────────────
+function switchPickingTab(tab) {
+  ['order','payment','done'].forEach(t => {
+    document.getElementById('picking-'+t+'-section').style.display = t===tab?'block':'none';
+    const btn = document.getElementById('ptab-'+t);
+    if (btn) {
+      btn.style.background = t===tab?'#1A1A2E':'#F5F3EF';
+      btn.style.color = t===tab?'#E8A87C':'#6B6B80';
+      btn.style.border = t===tab?'none':'1.5px solid #DDD8D0';
+    }
+  });
+  const orders = showArchived ? allOrders : allOrders.filter(o=>(o.trip||currentTrip)===currentTrip);
+  if (tab==='payment') renderPaymentList(orders);
+  if (tab==='done') renderDoneList(orders);
+}
+
 // ── Picking ────────────────────────────────────────
 function onPickingSelect(silent = false) {
   const val = document.getElementById('picking-select').value;
@@ -620,8 +657,7 @@ function onPickingSelect(silent = false) {
   if (!val) { document.getElementById('picking-content').innerHTML = ''; return; }
   if (val === '__ALL__') { renderPickingAll(orders); return; }
   if (val === '__PENDING__') { renderPickingPending(orders); return; }
-  if (val === '__PAYMENT__') { renderPaymentList(orders); return; }
-  if (val === '__DONE__') { renderDoneList(orders); return; }
+
   renderPickingCustomer(val, orders);
 }
 
@@ -773,7 +809,8 @@ async function loadPayments(trip) {
 }
 
 async function renderPaymentList(orders) {
-  const container = document.getElementById('picking-content');
+  document.getElementById('loading-payment').style.display = 'none';
+  const container = document.getElementById('payment-content');
   await loadPayments(currentTrip);
 
   const groups = groupByNickname(orders);
@@ -869,17 +906,20 @@ async function addPayment(name, nameKey) {
   if (!method) { alert('請選擇付款方式！'); return; }
   if (!amount) { alert('請輸入付款金額！'); return; }
   await sb.from('payments').insert([{ nickname: name, trip: currentTrip, method, amount, note }]);
-  await renderPaymentList(showArchived ? allOrders : allOrders.filter(o=>(o.trip||currentTrip)===currentTrip));
+  const freshOrders = showArchived ? allOrders : allOrders.filter(o=>(o.trip||currentTrip)===currentTrip);
+  await renderPaymentList(freshOrders);
 }
 
 async function deletePayment(id, name) {
   if (!confirm('確定刪除這筆付款紀錄？')) return;
   await sb.from('payments').delete().eq('id', id);
-  await renderPaymentList(showArchived ? allOrders : allOrders.filter(o=>(o.trip||currentTrip)===currentTrip));
+  const freshOrders2 = showArchived ? allOrders : allOrders.filter(o=>(o.trip||currentTrip)===currentTrip);
+  await renderPaymentList(freshOrders2);
 }
 
 async function renderDoneList(orders) {
-  const container = document.getElementById('picking-content');
+  document.getElementById('loading-done').style.display = 'none';
+  const container = document.getElementById('done-content');
   await loadPayments(currentTrip);
 
   const groups = groupByNickname(orders);
