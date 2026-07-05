@@ -114,7 +114,6 @@ td { padding: 7px 10px; border-bottom: 1px solid #F0EDEA; vertical-align: middle
                 <option value="pending">處理中</option>
                 <option value="success">採購成功</option>
                 <option value="outofstock">斷貨</option>
-                <option value="shipped">已完成出貨</option>
               </select>
             </div>
           </div>
@@ -271,12 +270,11 @@ const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const sb = window.supabase.createClient(SURL, SKEY);
 
 const STATUS = {
-  pending:    { label:'處理中',       color:'#A0A0B8', bg:'#F0F0F8' },
-  success:    { label:'採購成功',     color:'#2E7D32', bg:'#E8F5E9' },
-  outofstock: { label:'斷貨',         color:'#D64045', bg:'#FFEBEE' },
-  shipped:    { label:'已完成出貨',   color:'#1565C0', bg:'#E3F2FD' },
+  pending:    { label:'處理中',   color:'#A0A0B8', bg:'#F0F0F8' },
+  success:    { label:'採購成功', color:'#2E7D32', bg:'#E8F5E9' },
+  outofstock: { label:'斷貨',     color:'#D64045', bg:'#FFEBEE' },
 };
-const COUNT_STATUSES = ['success','shipped'];
+const COUNT_STATUSES = ['success'];
 
 let allOrders = [];
 let currentTrip = 'CC六月連線/選物訂單';
@@ -620,6 +618,8 @@ function onPickingSelect(silent = false) {
   if (!val) { document.getElementById('picking-content').innerHTML = ''; return; }
   if (val === '__ALL__') { renderPickingAll(orders); return; }
   if (val === '__PENDING__') { renderPickingPending(orders); return; }
+  if (val === '__PAYMENT__') { renderPaymentList(orders); return; }
+  if (val === '__DONE__') { renderDoneList(orders); return; }
   renderPickingCustomer(val, orders);
 }
 
@@ -757,6 +757,174 @@ function autoSaveGroup(nickname, field, value, ...ids) {
   }, 800);
 }
 
+// ── Payment ───────────────────────────────────────
+let paymentsCache = {};
+
+async function loadPayments(trip) {
+  const { data } = await sb.from('payments').select('*').eq('trip', trip).order('created_at', { ascending: true });
+  paymentsCache = {};
+  (data || []).forEach(p => {
+    const k = p.nickname.toLowerCase();
+    if (!paymentsCache[k]) paymentsCache[k] = [];
+    paymentsCache[k].push(p);
+  });
+}
+
+async function renderPaymentList(orders) {
+  const container = document.getElementById('picking-content');
+  await loadPayments(currentTrip);
+
+  const groups = groupByNickname(orders);
+  // Show customers with success items and not fully paid
+  const paymentGroups = Object.entries(groups).filter(([name, items]) => {
+    return items.some(o => o.status === 'success');
+  }).filter(([name, items]) => {
+    const total = items.reduce((s,o)=>s+itemTotal(o),0) +
+      Number(items[0]?.shipping||0) + Number(items[0]?.extra||0) - Number(items[0]?.discount||0);
+    const paid = (paymentsCache[name.toLowerCase()]||[]).reduce((s,p)=>s+Number(p.amount),0);
+    return paid < total; // still has balance
+  });
+
+  if (!paymentGroups.length) {
+    container.innerHTML = '<div class="empty" style="color:#2E7D32">✓ 目前沒有待付款訂單！</div>';
+    return;
+  }
+
+  let html = '';
+  paymentGroups.forEach(([name, items]) => {
+    const successQty = items.filter(o=>o.status==='success').reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
+    const total = Math.round(items.reduce((s,o)=>s+itemTotal(o),0) +
+      Number(items[0]?.shipping||0) + Number(items[0]?.extra||0) - Number(items[0]?.discount||0));
+    const pmList = paymentsCache[name.toLowerCase()] || [];
+    const paid = Math.round(pmList.reduce((s,p)=>s+Number(p.amount),0));
+    const balance = total - paid;
+    const nameKey = name.replace(/[^a-zA-Z0-9一-鿿]/g, '_');
+
+    html += `<div class="order-card" style="margin-bottom:12px">
+      <div class="order-card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="color:#fff;font-weight:700;font-size:15px">${esc(name)}</div>
+          <div style="color:#A0A0B8;font-size:11px;margin-top:2px">採購成功 ${successQty} 件</div>
+        </div>
+        <div style="text-align:right">
+          <div style="color:#E8A87C;font-weight:700;font-size:15px">應付 NT$${total.toLocaleString()}</div>
+          <div style="color:#A0A0B8;font-size:11px">未付 NT$${balance.toLocaleString()}</div>
+        </div>
+      </div>
+      <div style="padding:14px 16px">
+        ${pmList.length > 0 ? `
+        <div style="margin-bottom:12px;background:#F9F7F5;border-radius:8px;padding:10px 12px">
+          <div style="font-size:11px;font-weight:600;color:#6B6B80;margin-bottom:6px">付款紀錄</div>
+          ${pmList.map(p => `
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:4px">
+              <span style="color:#1A1A2E">${esc(p.method)}${p.note?' ・ '+esc(p.note):''}</span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-weight:600;color:#2E7D32">NT$${Number(p.amount).toLocaleString()}</span>
+                <button onclick="deletePayment(${p.id},'${esc(name)}')" style="background:transparent;border:none;color:#D64045;cursor:pointer;font-size:13px;padding:0">✕</button>
+              </div>
+            </div>`).join('')}
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#6B6B80;border-top:1px solid #E8E4DF;padding-top:6px;margin-top:4px">
+            <span>已付合計</span><span style="font-weight:600;color:#1A1A2E">NT$${paid.toLocaleString()}</span>
+          </div>
+        </div>` : ''}
+        <div style="font-size:12px;font-weight:600;color:#6B6B80;margin-bottom:8px">＋ 新增付款紀錄</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <div style="font-size:11px;color:#6B6B80;margin-bottom:4px">付款方式</div>
+            <select id="pm-method-${nameKey}" style="width:100%;border:1.5px solid #DDD8D0;border-radius:8px;padding:8px;font-size:13px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
+              <option value="">選擇付款方式</option>
+              <option value="轉帳">轉帳</option>
+              <option value="LINE Pay">LINE Pay</option>
+              <option value="賣貨便">賣貨便</option>
+              <option value="現金">現金</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#6B6B80;margin-bottom:4px">金額 NT$</div>
+            <input type="number" id="pm-amount-${nameKey}" placeholder="${balance.toLocaleString()}"
+              style="width:100%;border:1.5px solid #DDD8D0;border-radius:8px;padding:8px;font-size:13px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
+          </div>
+          <div style="grid-column:1/-1">
+            <div style="font-size:11px;color:#6B6B80;margin-bottom:4px">備註（選填）</div>
+            <input type="text" id="pm-note-${nameKey}" placeholder="如：賣貨便單號"
+              style="width:100%;border:1.5px solid #DDD8D0;border-radius:8px;padding:8px;font-size:13px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
+          </div>
+        </div>
+        <button onclick="addPayment('${esc(name)}','${nameKey}')"
+          style="width:100%;background:#1A1A2E;color:#E8A87C;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+          ＋ 新增付款紀錄
+        </button>
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+async function addPayment(name, nameKey) {
+  const method = document.getElementById(`pm-method-${nameKey}`)?.value;
+  const amount = parseFloat(document.getElementById(`pm-amount-${nameKey}`)?.value) || 0;
+  const note = document.getElementById(`pm-note-${nameKey}`)?.value || '';
+  if (!method) { alert('請選擇付款方式！'); return; }
+  if (!amount) { alert('請輸入付款金額！'); return; }
+  await sb.from('payments').insert([{ nickname: name, trip: currentTrip, method, amount, note }]);
+  await renderPaymentList(showArchived ? allOrders : allOrders.filter(o=>(o.trip||currentTrip)===currentTrip));
+}
+
+async function deletePayment(id, name) {
+  if (!confirm('確定刪除這筆付款紀錄？')) return;
+  await sb.from('payments').delete().eq('id', id);
+  await renderPaymentList(showArchived ? allOrders : allOrders.filter(o=>(o.trip||currentTrip)===currentTrip));
+}
+
+async function renderDoneList(orders) {
+  const container = document.getElementById('picking-content');
+  await loadPayments(currentTrip);
+
+  const groups = groupByNickname(orders);
+  const doneGroups = Object.entries(groups).filter(([name, items]) => {
+    const hasSuccess = items.some(o => o.status === 'success');
+    if (!hasSuccess) return false;
+    const total = Math.round(items.reduce((s,o)=>s+itemTotal(o),0) +
+      Number(items[0]?.shipping||0) + Number(items[0]?.extra||0) - Number(items[0]?.discount||0));
+    const paid = Math.round((paymentsCache[name.toLowerCase()]||[]).reduce((s,p)=>s+Number(p.amount),0));
+    return paid >= total && total > 0;
+  });
+
+  if (!doneGroups.length) {
+    container.innerHTML = '<div class="empty">尚無已完成訂單</div>';
+    return;
+  }
+
+  let html = '';
+  doneGroups.forEach(([name, items]) => {
+    const successQty = items.filter(o=>o.status==='success').reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
+    const pmList = paymentsCache[name.toLowerCase()] || [];
+    const paid = Math.round(pmList.reduce((s,p)=>s+Number(p.amount),0));
+
+    html += `<div class="order-card" style="margin-bottom:12px">
+      <div class="order-card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="color:#fff;font-weight:700;font-size:15px">${esc(name)}</div>
+          <div style="color:#A0A0B8;font-size:11px;margin-top:2px">採購成功 ${successQty} 件</div>
+        </div>
+        <span style="background:#2E7D32;color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600">✓ 付款完成</span>
+      </div>
+      <div style="padding:12px 16px">
+        ${pmList.map(p => `
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+            <span style="color:#6B6B80">${esc(p.method)}${p.note?' ・ '+esc(p.note):''}</span>
+            <span style="font-weight:600;color:#2E7D32">NT$${Number(p.amount).toLocaleString()}</span>
+          </div>`).join('')}
+        <div style="display:flex;justify-content:space-between;font-weight:700;font-size:15px;color:#1A1A2E;border-top:1px solid #E8E4DF;padding-top:8px;margin-top:6px">
+          <span>付款總計</span>
+          <span style="color:#2E7D32">NT$${paid.toLocaleString()}</span>
+        </div>
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
 // ── Shipping ───────────────────────────────────────
 function onShippingSelect(silent = false) {
   const val = document.getElementById('shipping-select').value;
@@ -815,9 +983,9 @@ function renderShippingCustomer(name, orders) {
 
   html += `<div class="order-footer">
     ${(() => {
-      const shippedQty = items.filter(o => o.status === 'shipped').reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
+      const successQty = items.filter(o => o.status === 'success').reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
       const totalQty = items.reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
-      return shippedQty > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;padding:8px 10px;background:#E3F2FD;border-radius:8px;color:#1565C0"><span>✓ 實際出貨數量</span><span style="font-weight:700">${shippedQty} / ${totalQty} 件</span></div>` : '';
+      return successQty > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;padding:8px 10px;background:#E8F5E9;border-radius:8px;color:#2E7D32"><span>✓ 採購成功數量</span><span style="font-weight:700">${successQty} / ${totalQty} 件</span></div>` : '';
     })()}
     ${itemsTwd>0?`<div style="display:flex;justify-content:space-between;font-size:13px;color:#6B6B80;margin-bottom:4px"><span>商品合計</span><span>NT$${Math.round(itemsTwd).toLocaleString()}</span></div>`:''}
     ${shipping>0?`<div style="display:flex;justify-content:space-between;font-size:13px;color:#6B6B80;margin-bottom:4px"><span>運費</span><span>NT$${shipping.toLocaleString()}</span></div>`:''}
@@ -930,9 +1098,9 @@ function renderCustomer(name) {
 
     html += `<div style="background:#FEF9F4;padding:12px 16px;border-radius:0 0 12px 12px">
       ${(() => {
-        const shippedQty = sorted.filter(o => o.status === 'shipped').reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
+        const successQty = sorted.filter(o => o.status === 'success').reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
         const totalQty = sorted.reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
-        return shippedQty > 0 ? `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;padding:8px 10px;background:#E3F2FD;border-radius:8px;color:#1565C0"><span>✓ 實際出貨數量</span><span style="font-weight:700">${shippedQty} / ${totalQty} 件</span></div>` : '';
+        return successQty > 0 ? `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;padding:8px 10px;background:#E8F5E9;border-radius:8px;color:#2E7D32"><span>✓ 採購成功數量</span><span style="font-weight:700">${successQty} / ${totalQty} 件</span></div>` : '';
       })()}
       ${itemsTwd>0?`<div style="display:flex;justify-content:space-between;font-size:12px;color:#6B6B80;margin-bottom:3px"><span>商品合計</span><span>NT$${Math.round(itemsTwd).toLocaleString()}</span></div>`:''}
       ${shipping>0?`<div style="display:flex;justify-content:space-between;font-size:12px;color:#6B6B80;margin-bottom:3px"><span>運費</span><span>NT$${shipping.toLocaleString()}</span></div>`:''}
