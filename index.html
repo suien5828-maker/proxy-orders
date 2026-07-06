@@ -1021,7 +1021,17 @@ async function addPayment(name, nameKey) {
   const note = document.getElementById(`pm-note-${nameKey}`)?.value || '';
   if (!method) { alert('請選擇付款方式！'); return; }
   if (!amount) { alert('請輸入付款金額！'); return; }
-  await sb.from('payments').insert([{ nickname: name, trip: currentTrip, method, amount, note }]);
+
+  // Generate order number for first payment only
+  const existing = paymentsCache[name.toLowerCase()] || [];
+  let order_no = existing.length > 0 ? (existing[0].order_no || '') : '';
+  if (!order_no) {
+    const d = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    const r = String(Math.floor(Math.random()*900+100));
+    order_no = `CC${d}-${r}`;
+  }
+
+  await sb.from('payments').insert([{ nickname: name, trip: currentTrip, method, amount, note, order_no }]);
   const freshOrders = showArchived ? allOrders : allOrders.filter(o=>(o.trip||currentTrip)===currentTrip);
   await renderPaymentList(freshOrders);
 }
@@ -1171,12 +1181,14 @@ function showDoneCustomer() {
   const successQty = items.filter(o=>o.status==='success').reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
   const pmList = paymentsCache[name.toLowerCase()] || [];
   const paid = Math.round(pmList.reduce((s,p)=>s+Number(p.amount),0));
+  const orderNo = pmList[0]?.order_no || '';
 
   let html = `<div class="order-card">
     <div class="order-card-header" style="display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="color:#fff;font-weight:700;font-size:15px">${esc(name)}</div>
         <div style="color:#A0A0B8;font-size:11px;margin-top:2px">採購成功 ${successQty} 件</div>
+        ${orderNo?`<div style="background:#2A2A4E;color:#E8A87C;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;display:inline-block;margin-top:4px">${esc(orderNo)}</div>`:''}
       </div>
       <span style="background:#2E7D32;color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600">✓ 付款完成</span>
     </div>
