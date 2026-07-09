@@ -342,6 +342,19 @@ function groupByNickname(orders) {
   Object.keys(map).forEach(k => result[display[k]] = map[k]);
   return result;
 }
+function getGroupFields(items) {
+  const shippingVals = items.map(o => Number(o.shipping)||0).filter(v => v > 0);
+  const extraVals = items.map(o => Number(o.extra)||0).filter(v => v > 0);
+  const discountVals = items.map(o => Number(o.discount)||0).filter(v => v > 0);
+  const noteItem = items.find(o => o.note && o.note.trim());
+  return {
+    shipping: shippingVals.length > 0 ? Math.max(...shippingVals) : 0,
+    extra: extraVals.length > 0 ? Math.max(...extraVals) : 0,
+    discount: discountVals.length > 0 ? Math.max(...discountVals) : 0,
+    note: noteItem?.note || '',
+  };
+}
+
 function needsAttention(o) {
   if (o.status === 'outofstock') return false; // 斷貨不出現
   const nickname = o.nickname.toLowerCase();
@@ -740,10 +753,7 @@ function renderPickingCustomer(name, orders) {
 
   // Calculate totals from DB data directly
   const itemsTwd = items.reduce((s,o) => s + itemTotal(o), 0);
-  const shipping = Number(items[0]?.shipping||0);
-  const extra = Number(items[0]?.extra||0);
-  const discount = Number(items[0]?.discount||0);
-  const note = items[0]?.note||'';
+  const { shipping, extra, discount, note } = getGroupFields(items);
   const total = itemsTwd + shipping + extra - discount;
 
   let html = `<div class="order-card">
@@ -815,9 +825,10 @@ function autoSaveGroup(nickname, field, value, ...ids) {
     const data = {};
     if (['shipping','extra','discount'].includes(field)) data[field] = parseFloat(value)||0;
     else data[field] = value;
-    for (const id of ids) {
-      await sb.from('orders').update(data).eq('id', id);
-    }
+    // Update ALL orders for this nickname in current trip to keep consistent
+    const { error } = await sb.from('orders').update(data)
+      .ilike('nickname', nickname)
+      .eq('trip', currentTrip);
     await loadOrders(true);
   }, 800);
 }
@@ -844,7 +855,7 @@ async function renderPaymentList(orders) {
   const paymentGroups = Object.entries(groups).filter(([name, items]) => {
     if (!items.some(o => o.status === 'success')) return false;
     const total = Math.round(items.reduce((s,o)=>s+itemTotal(o),0) +
-      Number(items[0]?.shipping||0) + Number(items[0]?.extra||0) - Number(items[0]?.discount||0));
+      (()=>{ const gf=getGroupFields(items); return gf.shipping + gf.extra - gf.discount; })());
     if (total <= 0) return false;
     const paid = Math.round((paymentsCache[name.toLowerCase()]||[]).reduce((s,p)=>s+Number(p.amount),0));
     return paid < total;
@@ -883,7 +894,7 @@ function showPaymentCustomer() {
 
   const successQty = items.filter(o=>o.status==='success').reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
   const total = Math.round(items.reduce((s,o)=>s+itemTotal(o),0) +
-    Number(items[0]?.shipping||0) + Number(items[0]?.extra||0) - Number(items[0]?.discount||0));
+    (()=>{ const gf=getGroupFields(items); return gf.shipping + gf.extra - gf.discount; })());
   const pmList = paymentsCache[name.toLowerCase()] || [];
   const paid = Math.round(pmList.reduce((s,p)=>s+Number(p.amount),0));
   const balance = total - paid;
@@ -976,7 +987,7 @@ function _paymentGroupsLoop() {
   paymentGroups.forEach(([name, items]) => {
     const successQty = items.filter(o=>o.status==='success').reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
     const total = Math.round(items.reduce((s,o)=>s+itemTotal(o),0) +
-      Number(items[0]?.shipping||0) + Number(items[0]?.extra||0) - Number(items[0]?.discount||0));
+      (()=>{ const gf=getGroupFields(items); return gf.shipping + gf.extra - gf.discount; })());
     const pmList = paymentsCache[name.toLowerCase()] || [];
     const paid = Math.round(pmList.reduce((s,p)=>s+Number(p.amount),0));
     const balance = total - paid;
@@ -1123,7 +1134,7 @@ async function renderDoneList(orders) {
   const doneGroups = Object.entries(groups).filter(([name, items]) => {
     if (!items.some(o => o.status === 'success')) return false;
     const total = Math.round(items.reduce((s,o)=>s+itemTotal(o),0) +
-      Number(items[0]?.shipping||0) + Number(items[0]?.extra||0) - Number(items[0]?.discount||0));
+      (()=>{ const gf=getGroupFields(items); return gf.shipping + gf.extra - gf.discount; })());
     const paid = Math.round((paymentsCache[name.toLowerCase()]||[]).reduce((s,p)=>s+Number(p.amount),0));
     return paid >= total && total > 0;
   });
@@ -1307,10 +1318,7 @@ function renderShippingCustomer(name, orders) {
   if (!items.length) { document.getElementById('shipping-content').innerHTML = '<div class="empty">找不到此客人訂單</div>'; return; }
 
   const itemsTwd = items.reduce((s,o) => s + itemTotal(o), 0);
-  const shipping = Number(items[0]?.shipping||0);
-  const extra = Number(items[0]?.extra||0);
-  const discount = Number(items[0]?.discount||0);
-  const note = items[0]?.note||'';
+  const { shipping, extra, discount, note } = getGroupFields(items);
   const total = itemsTwd + shipping + extra - discount;
 
   let html = `<div class="order-card">
@@ -1378,7 +1386,7 @@ function showRevenue() {
   const total = tripOrders.reduce((s,o) => s + itemTotal(o), 0);
   const groups = groupByNickname(tripOrders);
   const adj = Object.values(groups).reduce((s, items) => {
-    return s + Number(items[0]?.shipping||0) + Number(items[0]?.extra||0) - Number(items[0]?.discount||0);
+    return s + (()=>{ const gf=getGroupFields(items); return gf.shipping + gf.extra - gf.discount; })();
   }, 0);
   const grand = total + adj;
   const totalQty = tripOrders.reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
@@ -1430,10 +1438,7 @@ function renderCustomer(name) {
   const orderNo = pmList[0]?.order_no || '';
   const sorted = [...items].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
   const itemsTwd = sorted.reduce((s,o)=>s+itemTotal(o),0);
-  const shipping = Number(sorted[0]?.shipping||0);
-  const extra = Number(sorted[0]?.extra||0);
-  const discount = Number(sorted[0]?.discount||0);
-  const note = sorted[0]?.note||'';
+  const { shipping, extra, discount, note } = getGroupFields(sorted);
   const total = Math.round(itemsTwd + shipping + extra - discount);
   const isPaid = paidTotal >= total && total > 0;
   const successQty = sorted.filter(o=>o.status==='success').reduce((s,o)=>s+(parseInt(o.quantity)||1),0);
