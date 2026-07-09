@@ -341,6 +341,10 @@ function needsAttention(o) {
   const hasJpy = Number(o.price_jpy) > 0;
   const missingPrice = !hasTwd && !hasJpy && o.status !== 'outofstock';
   const isPending = (o.status || 'pending') === 'pending';
+  // Check if customer has paid
+  const nickname = o.nickname.toLowerCase();
+  const pmList = paymentsCache[nickname] || [];
+  if (pmList.length > 0) return false; // already paid, ignore
   return missingPrice || isPending;
 }
 
@@ -480,6 +484,7 @@ async function loadOrders(silent = false) {
   renderTable(filtered);
   renderTripUI();
   populateSelects(filtered);
+  await loadPayments(currentTrip);
   renderAlerts(filtered);
 
   // Re-render active picking/shipping/customer if visible
