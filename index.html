@@ -337,15 +337,18 @@ function groupByNickname(orders) {
   return result;
 }
 function needsAttention(o) {
-  const hasTwd = Number(o.price_twd) > 0;
-  const hasJpy = Number(o.price_jpy) > 0;
-  const missingPrice = !hasTwd && !hasJpy && o.status !== 'outofstock';
-  const isPending = (o.status || 'pending') === 'pending';
-  // Check if customer has paid
+  if (o.status === 'outofstock') return false; // 斷貨不出現
   const nickname = o.nickname.toLowerCase();
   const pmList = paymentsCache[nickname] || [];
-  if (pmList.length > 0) return false; // already paid, ignore
-  return missingPrice || isPending;
+  const hasPaid = pmList.length > 0;
+  if (hasPaid) return false; // 已付款不出現
+  // 未付款的：處理中、未填價格、採購成功都要出現
+  const hasTwd = Number(o.price_twd) > 0;
+  const hasJpy = Number(o.price_jpy) > 0;
+  const missingPrice = !hasTwd && !hasJpy;
+  const isPending = (o.status || 'pending') === 'pending';
+  const isSuccess = o.status === 'success';
+  return isPending || missingPrice || isSuccess;
 }
 
 // ── Image ──────────────────────────────────────────
