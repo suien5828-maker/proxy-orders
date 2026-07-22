@@ -497,13 +497,14 @@ async function loadOrders(silent = false) {
   const { data } = await sb.from('orders').select('*').order('created_at', { ascending: false });
   allOrders = data || [];
 
-  // Update known trips - sort by newest first
+  // Update known trips
   const dbTrips = [...new Set(allOrders.map(o => o.trip).filter(Boolean))];
   dbTrips.forEach(t => { if (!knownTrips.includes(t)) knownTrips.push(t); });
 
-  // Auto-select latest trip if not set yet
-  if (!currentTrip && knownTrips.length > 0) {
-    currentTrip = knownTrips[knownTrips.length - 1];
+  // Auto-select latest trip by most recent order's trip
+  if (!currentTrip && allOrders.length > 0) {
+    // allOrders is sorted by created_at desc, so first order is newest
+    currentTrip = allOrders[0].trip || knownTrips[0] || '';
   }
 
   const filtered = showArchived ? allOrders : allOrders.filter(o => (o.trip || currentTrip) === currentTrip);
