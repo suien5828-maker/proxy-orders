@@ -306,8 +306,8 @@ const STATUS = {
 const COUNT_STATUSES = ['success'];
 
 let allOrders = [];
-let currentTrip = 'CC六月連線/選物訂單';
-let knownTrips = ['CC六月連線/選物訂單'];
+let currentTrip = '';
+let knownTrips = [];
 let showArchived = false;
 let currentImageFile = null;
 const saveTimers = {};
@@ -497,9 +497,14 @@ async function loadOrders(silent = false) {
   const { data } = await sb.from('orders').select('*').order('created_at', { ascending: false });
   allOrders = data || [];
 
-  // Update known trips
+  // Update known trips - sort by newest first
   const dbTrips = [...new Set(allOrders.map(o => o.trip).filter(Boolean))];
   dbTrips.forEach(t => { if (!knownTrips.includes(t)) knownTrips.push(t); });
+
+  // Auto-select latest trip if not set yet
+  if (!currentTrip && knownTrips.length > 0) {
+    currentTrip = knownTrips[knownTrips.length - 1];
+  }
 
   const filtered = showArchived ? allOrders : allOrders.filter(o => (o.trip || currentTrip) === currentTrip);
 
