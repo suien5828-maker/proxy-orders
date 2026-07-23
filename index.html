@@ -107,7 +107,7 @@ td { padding: 7px 10px; border-bottom: 1px solid #F0EDEA; vertical-align: middle
             <div class="form-group"><label>匯率 ¥1=NT$?</label><input type="number" id="f-rate" step="0.01" value="0.3" placeholder="0.3" oninput="calcTwd()"></div>
             <div class="form-group"><label>換算台幣（自動）</label><input type="text" id="f-calc" readonly placeholder="自動計算"></div>
             <div class="form-group"><label>直接台幣售價</label><input type="number" id="f-twd" placeholder="填了優先使用"></div>
-            <div class="form-group full"><label>廠商</label><input type="text" id="f-vendor" placeholder="廠商名稱"></div>
+            <div class="form-group full"><label>備註</label><input type="text" id="f-vendor" placeholder="備註（廠商、顏色、規格等）"></div>
             <div class="form-group full">
               <label>商品狀態</label>
               <select id="f-status">
@@ -163,7 +163,7 @@ td { padding: 7px 10px; border-bottom: 1px solid #F0EDEA; vertical-align: middle
       <div class="loading" id="loading-orders">載入中…</div>
       <div class="table-wrap" id="table-wrap" style="display:none">
         <table>
-          <thead><tr><th>圖片</th><th>日期</th><th>暱稱</th><th>商品</th><th>尺寸</th><th>數量</th><th>廠商</th><th>日幣</th><th>台幣</th><th>狀態</th><th></th></tr></thead>
+          <thead><tr><th>圖片</th><th>日期</th><th>暱稱</th><th>商品</th><th>尺寸</th><th>數量</th><th>備註</th><th>日幣</th><th>台幣</th><th>狀態</th><th></th></tr></thead>
           <tbody id="order-tbody"></tbody>
         </table>
       </div>
@@ -720,7 +720,7 @@ function renderPickingAll(orders) {
           '<div style="width:80px;height:80px;background:#F0EDEA;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#CCC">無圖</div>'}
         <div style="flex:1">
           <div style="font-weight:700;color:#1A1A2E;font-size:14px">${esc(o.item)}</div>
-          <div style="font-size:12px;color:#6B6B80;margin-top:2px"><span style="color:#E8A87C;font-weight:600">${esc(o.nickname)}</span>${o.size?'　'+esc(o.size):''}　數量：${o.quantity||1}</div>
+          <div style="font-size:12px;color:#6B6B80;margin-top:2px"><span style="color:#E8A87C;font-weight:600">${esc(o.nickname)}</span>${o.size?'　'+esc(o.size):''}　數量：${o.quantity||1}${o.vendor?'　<span style="background:#F0EDEA;border-radius:4px;padding:1px 6px">'+esc(o.vendor)+'</span>':''}</div>
           <div class="price-grid" style="margin-top:8px">
             <div><div class="field-lbl">日幣 ¥</div><input class="inline-input" type="number" value="${o.price_jpy||''}" placeholder="1500" oninput="autoSave(${o.id},'price_jpy',this.value); calcInlineTwd(${o.id},this.closest('.price-grid'))"></div>
             <div><div class="field-lbl">匯率</div><input class="inline-input" type="number" step="0.01" value="${o.rate||''}" placeholder="0.3" oninput="autoSave(${o.id},'rate',this.value); calcInlineTwd(${o.id},this.closest('.price-grid'))"></div>
@@ -780,6 +780,7 @@ function renderPickingCustomer(name, orders) {
           <div><div class="field-lbl">暱稱</div><input class="inline-input" type="text" value="${esc(o.nickname)}" oninput="autoSave(${o.id},'nickname',this.value)"></div>
           <div><div class="field-lbl">商品名稱</div><input class="inline-input" type="text" value="${esc(o.item)}" oninput="autoSave(${o.id},'item',this.value)"></div>
           <div><div class="field-lbl">尺寸/規格</div><input class="inline-input" type="text" value="${esc(o.size||'')}" oninput="autoSave(${o.id},'size',this.value)"></div>
+          <div><div class="field-lbl">備註</div><input class="inline-input" type="text" value="${esc(o.vendor||'')}" oninput="autoSave(${o.id},'vendor',this.value)"></div>
           <div><div class="field-lbl">數量</div><input class="inline-input" type="number" min="1" value="${o.quantity||1}" oninput="autoSave(${o.id},'quantity',this.value)"></div>
         </div>
         <div class="price-grid">
@@ -1346,7 +1347,7 @@ function renderShippingCustomer(name, orders) {
       <div style="flex:1">
         <div style="font-weight:700;color:${o.status==='outofstock'?'#D64045':'#1A1A2E'};font-size:14px;margin-bottom:4px">${esc(o.item)}${o.status==='outofstock'?' （斷貨）':''}</div>
         <div style="font-size:12px;color:#6B6B80">
-          ${o.size?esc(o.size)+'　':''}數量：${o.quantity||1}${o.vendor?`　廠商：${esc(o.vendor)}`:''}
+          ${o.size?esc(o.size)+'　':''}數量：${o.quantity||1}${o.vendor?`　${esc(o.vendor)}`:''}
         </div>
         <div style="font-size:12px;color:#6B6B80;margin-top:2px">
           ${o.price_jpy>0?`日幣：¥${Number(o.price_jpy).toLocaleString()}　`:''}
