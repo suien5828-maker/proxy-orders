@@ -163,7 +163,7 @@ td { padding: 7px 10px; border-bottom: 1px solid #F0EDEA; vertical-align: middle
       <div class="loading" id="loading-orders">載入中…</div>
       <div class="table-wrap" id="table-wrap" style="display:none">
         <table>
-          <thead><tr><th>圖片</th><th>日期</th><th>暱稱</th><th>商品</th><th>尺寸</th><th>數量</th><th>備註</th><th>日幣</th><th>台幣</th><th>狀態</th><th></th></tr></thead>
+          <thead><tr><th>圖片</th><th>日期</th><th>暱稱</th><th>商品</th><th>尺寸</th><th>數量</th><th>備註</th><th>日幣</th><th>台幣</th><th>總額</th><th>狀態</th><th></th></tr></thead>
           <tbody id="order-tbody"></tbody>
         </table>
       </div>
@@ -473,6 +473,26 @@ async function addOrder() {
   await loadOrders();
 }
 
+// ── Image update ──────────────────────────────────
+async function updateOrderImage(id, input) {
+  if (!input.files[0]) return;
+  const file = await compressImage(input.files[0]);
+  const fname = Date.now() + '.jpg';
+  const { error: ue } = await sb.storage.from('product-image').upload(fname, file);
+  if (ue) { alert('圖片上傳失敗'); return; }
+  const { data: ud } = sb.storage.from('product-image').getPublicUrl(fname);
+  await sb.from('orders').update({ image_url: ud.publicUrl }).eq('id', id);
+  await loadOrders(true);
+  onPickingSelect(true);
+}
+
+async function removeOrderImage(id) {
+  if (!confirm('確定移除圖片？')) return;
+  await sb.from('orders').update({ image_url: null }).eq('id', id);
+  await loadOrders(true);
+  onPickingSelect(true);
+}
+
 // ── Auto-save single field ─────────────────────────
 function autoSave(orderId, field, value) {
   const key = `${orderId}_${field}`;
@@ -668,6 +688,7 @@ function renderTable(orders) {
       <td style="color:#6B6B80">${esc(o.vendor)||'-'}</td>
       <td style="font-size:11px;color:#6B6B80">${o.price_jpy>0?'¥'+Number(o.price_jpy).toLocaleString():'-'}</td>
       <td style="font-weight:600">${twd>0?'NT$'+Math.round(twd).toLocaleString():'-'}</td>
+      <td style="font-weight:600;color:#E8A87C">${itemTotal(o)>0?'NT$'+Math.round(itemTotal(o)).toLocaleString():'-'}</td>
       <td><span class="status-badge" style="background:${s.bg};color:${s.color};font-size:10px">${s.label}</span></td>
       <td><button onclick="deleteOrder(${o.id})" style="background:transparent;border:none;color:#C0A0A0;cursor:pointer;font-size:16px">×</button></td>
     </tr>`;
@@ -773,8 +794,13 @@ function renderPickingCustomer(name, orders) {
   items.forEach(o => {
     const s = STATUS[o.status]||STATUS.pending;
     html += `<div class="order-item-row">
-      ${o.image_url?`<img src="${esc(o.image_url)}" class="thumb">`:
-        '<div class="no-img">無圖</div>'}
+      <div style="flex-shrink:0;position:relative">
+        ${o.image_url
+          ? `<img src="${esc(o.image_url)}" class="thumb" onclick="document.getElementById('img-input-${o.id}').click()" style="cursor:pointer" title="點擊更換圖片">`
+          : `<div class="no-img" onclick="document.getElementById('img-input-${o.id}').click()" style="cursor:pointer">📷<br>上傳</div>`}
+        <input type="file" id="img-input-${o.id}" accept="image/*" style="display:none" onchange="updateOrderImage(${o.id}, this)">
+        ${o.image_url?`<button onclick="removeOrderImage(${o.id})" style="position:absolute;top:-6px;right:-6px;background:#D64045;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>`:''}
+      </div>
       <div style="flex:1">
         <div class="price-grid" style="grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
           <div><div class="field-lbl">暱稱</div><input class="inline-input" type="text" value="${esc(o.nickname)}" oninput="autoSave(${o.id},'nickname',this.value)"></div>
