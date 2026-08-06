@@ -766,7 +766,8 @@ function renderPickingAll(orders) {
   sorted.forEach((o,i) => {
     const s = STATUS[o.status]||STATUS.pending;
     const twd = calcTwdVal(o);
-    html += `<div style="padding:12px 16px;border-bottom:1px solid #F0EDEA;background:${i%2?'#FAFAF8':'#fff'}">
+    const rowBg1 = needsAttention(o) ? '#FFF0F0' : (i%2?'#FAFAF8':'#fff');
+    html += `<div style="padding:12px 16px;border-bottom:1px solid #F0EDEA;background:${rowBg1}">
       <div style="display:flex;gap:10px;align-items:flex-start">
         ${o.image_url?`<img src="${esc(o.image_url)}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0">`:
           '<div style="width:80px;height:80px;background:#F0EDEA;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#CCC">無圖</div>'}
@@ -824,7 +825,8 @@ function renderPickingCustomer(name, orders) {
 
   items.forEach(o => {
     const s = STATUS[o.status]||STATUS.pending;
-    html += `<div class="order-item-row">
+    const rowBg2 = needsAttention(o) ? '#FFF0F0' : (i%2?'#FAFAF8':'#fff');
+    html += `<div class="order-item-row" style="background:${rowBg2}">
       <div style="flex-shrink:0;position:relative">
         ${o.image_url
           ? `<img src="${esc(o.image_url)}" class="thumb" onclick="document.getElementById('img-input-${o.id}').click()" style="cursor:pointer" title="點擊更換圖片">`
