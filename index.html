@@ -1412,7 +1412,7 @@ function renderShippingCustomer(name, orders) {
     const twd = calcTwdVal(o);
     const twdTotal = itemTotal(o);
     const shipBg = rowNeedsHighlight(o) ? '#FFF0F0' : (i%2?'#FAFAF8':'#fff');
-    html += `<div style="display:flex;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid #F0EDEA;background:${shipBg}">`
+    html += `<div style="display:flex;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid #F0EDEA;background:${shipBg}">
       ${o.image_url?`<img src="${esc(o.image_url)}" class="thumb">`:
         '<div class="no-img">無圖</div>'}
       <div style="flex:1">
@@ -1546,7 +1546,7 @@ function renderCustomer(name) {
     const s = STATUS[o.status]||STATUS.pending;
     const twdTotal = itemTotal(o);
     const custBg = rowNeedsHighlight(o) ? '#FFF0F0' : (i%2?'#FAFAF8':'#fff');
-    html += `<div style="display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid #F0EDEA;background:${custBg}">`
+    html += `<div style="display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid #F0EDEA;background:${custBg}">
       ${o.image_url?`<img src="${esc(o.image_url)}" class="thumb">`:'<div class="no-img">無圖</div>'}
       <div style="flex:1">
         <div style="font-weight:700;color:${o.status==='outofstock'?'#D64045':'#1A1A2E'};font-size:14px;margin-bottom:3px">${esc(o.item)}${o.status==='outofstock'?' （斷貨）':''}</div>
