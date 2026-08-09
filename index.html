@@ -834,7 +834,8 @@ function renderPickingCustomer(name, orders) {
 
   items.forEach((o, i) => {
     const s = STATUS[o.status]||STATUS.pending;
-    const rowBg2 = rowNeedsHighlight(o) ? '#FFF0F0' : (i%2?'#FAFAF8':'#fff');
+    const isTransferred = o.transferred_from && o.transferred_from.trim();
+    const rowBg2 = isTransferred ? '#F0F0FF' : (rowNeedsHighlight(o) ? '#FFF0F0' : (i%2?'#FAFAF8':'#fff'));
     html += `<div class="order-item-row" style="background:${rowBg2}">
       <div style="flex-shrink:0;position:relative">
         ${o.image_url
@@ -862,6 +863,7 @@ function renderPickingCustomer(name, orders) {
           <select onchange="autoSave(${o.id},'status',this.value)" style="border:1.5px solid #DDD8D0;border-radius:6px;padding:3px 8px;font-size:12px;color:#1A1A2E;background:#FAFAF8;outline:none;font-family:inherit">
             ${Object.entries(STATUS).map(([v,st])=>`<option value="${v}" ${(o.status||'pending')===v?'selected':''}>${st.label}</option>`).join('')}
           </select>
+          ${isTransferred ? `<span style="background:#E0E0FF;color:#5050A0;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">🔀 從 ${esc(o.transferred_from)} 轉入</span>` : ''}
           <button onclick="openTransferTrip(${o.id}, '${esc(o.item)}')"
             style="background:transparent;border:1px solid #A0A0D0;border-radius:6px;color:#5050A0;font-size:11px;padding:3px 8px;cursor:pointer;font-family:inherit">🔀 轉移</button>
           <button class="btn-danger" onclick="deleteOrder(${o.id})">🗑 刪除</button>
@@ -1413,7 +1415,8 @@ function renderShippingCustomer(name, orders) {
     const s = STATUS[o.status]||STATUS.pending;
     const twd = calcTwdVal(o);
     const twdTotal = itemTotal(o);
-    const shipBg = rowNeedsHighlight(o) ? '#FFF0F0' : (i%2?'#FAFAF8':'#fff');
+    const isTransferredShip = o.transferred_from && o.transferred_from.trim();
+    const shipBg = isTransferredShip ? '#F0F0FF' : (rowNeedsHighlight(o) ? '#FFF0F0' : (i%2?'#FAFAF8':'#fff'));
     html += `<div style="display:flex;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid #F0EDEA;background:${shipBg}">
       ${o.image_url?`<img src="${esc(o.image_url)}" class="thumb">`:
         '<div class="no-img">無圖</div>'}
@@ -1547,7 +1550,8 @@ function renderCustomer(name) {
   sorted.forEach((o,i) => {
     const s = STATUS[o.status]||STATUS.pending;
     const twdTotal = itemTotal(o);
-    const custBg = rowNeedsHighlight(o) ? '#FFF0F0' : (i%2?'#FAFAF8':'#fff');
+    const isTransferredCust = o.transferred_from && o.transferred_from.trim();
+    const custBg = isTransferredCust ? '#F0F0FF' : (rowNeedsHighlight(o) ? '#FFF0F0' : (i%2?'#FAFAF8':'#fff'));
     html += `<div style="display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid #F0EDEA;background:${custBg}">
       ${o.image_url?`<img src="${esc(o.image_url)}" class="thumb">`:'<div class="no-img">無圖</div>'}
       <div style="flex:1">
@@ -1611,7 +1615,7 @@ async function confirmTransfer() {
   const targetTrip = document.getElementById('transfer-trip-select').value;
   if (!targetTrip) return;
   if (!confirm(`確定將此商品轉移到「${targetTrip}」？`)) return;
-  await sb.from('orders').update({ trip: targetTrip }).eq('id', _transferOrderId);
+  await sb.from('orders').update({ trip: targetTrip, transferred_from: currentTrip }).eq('id', _transferOrderId);
   closeTransferModal();
   await loadOrders(true);
   onPickingSelect(true);
