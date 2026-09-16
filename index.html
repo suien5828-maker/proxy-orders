@@ -450,9 +450,10 @@ async function addOrder() {
       image_url = ud.publicUrl;
     }
   }
+  const item = document.getElementById('f-item').value.trim();
   const row = {
     nickname,
-    item,
+    item: item || '（未填）',
     size: document.getElementById('f-size').value.trim(),
     quantity: parseInt(document.getElementById('f-qty').value) || 1,
     vendor: document.getElementById('f-vendor').value.trim(),
