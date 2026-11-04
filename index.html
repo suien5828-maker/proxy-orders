@@ -133,9 +133,10 @@ td { padding: 7px 10px; border-bottom: 1px solid #F0EDEA; vertical-align: middle
         </div>
         <div style="display:flex;gap:6px">
           <button onclick="toggleArchived()" id="archive-btn" style="background:transparent;border:1.5px solid #DDD8D0;border-radius:6px;padding:6px 12px;font-size:11px;color:#6B6B80;cursor:pointer;font-family:inherit">📦 查看歷史</button>
-          <button onclick="closeTrip()" style="background:#D64045;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">🔒 結團</button>
+          <button id="close-btn" onclick="closeTrip()" style="background:#D64045;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">🔒 結團</button>
         </div>
       </div>
+      <div id="closed-banner" style="display:none;background:#EDEDED;border:1.5px solid #9A9AA8;color:#4A4A5A;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:600"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div>
           <div style="font-size:11px;font-weight:600;color:#6B6B80;margin-bottom:6px">切換團次</div>
@@ -437,6 +438,10 @@ async function addOrder() {
     const e = document.getElementById('form-error');
     e.textContent = '請至少填寫暱稱'; e.style.display = 'block'; return;
   }
+  if (!currentTrip) {
+    const e = document.getElementById('form-error');
+    e.textContent = '請先選擇或建立團次'; e.style.display = 'block'; return;
+  }
   document.getElementById('form-error').style.display = 'none';
   const btn = document.getElementById('add-btn');
   btn.disabled = true; btn.textContent = '儲存中…';
@@ -567,6 +572,8 @@ async function loadOrders(silent = false) {
   renderTripUI();
   populateSelects(filtered);
   await loadPayments(currentTrip);
+  await loadClosedTrips();
+  renderTripUI();
   renderAlerts(filtered);
 
   // Re-render active picking/shipping/customer if visible
@@ -580,18 +587,50 @@ async function loadOrders(silent = false) {
 }
 
 // ── Trip UI ────────────────────────────────────────
+let closedTrips = {};
+async function loadClosedTrips() {
+  try {
+    const { data } = await sb.from('settings').select('value').eq('key','closed_trips').maybeSingle();
+    closedTrips = data && data.value ? JSON.parse(data.value) : {};
+  } catch (e) { /* keep previous */ }
+}
+async function saveClosedTrips(mutator) {
+  await loadClosedTrips(); // re-read to avoid overwriting other staff's changes
+  mutator(closedTrips);
+  const { error } = await sb.from('settings').upsert({ key:'closed_trips', value: JSON.stringify(closedTrips) }, { onConflict:'key' });
+  if (error) throw error;
+}
+function isClosed(t) { return !!closedTrips[t]; }
 function renderTripUI() {
-  document.getElementById('header-trip').textContent = showArchived ? '📦 查看歷史中' : `📍 ${currentTrip}`;
-  document.getElementById('current-trip-label').textContent = showArchived ? '查看歷史中' : currentTrip;
+  const closed = !showArchived && isClosed(currentTrip);
+  document.getElementById('header-trip').textContent = showArchived ? '📦 查看歷史中' : (closed ? `🔒 ${currentTrip}（已結團）` : `📍 ${currentTrip}`);
+  const hb = document.getElementById('header-trip');
+  hb.style.background = closed ? '#9A9AA8' : ''; hb.style.color = closed ? '#fff' : '';
+  const lbl = document.getElementById('current-trip-label');
+  lbl.textContent = showArchived ? '查看歷史中' : (closed ? `🔒 ${currentTrip}（已結團）` : currentTrip);
+  lbl.style.background = closed ? '#9A9AA8' : '#E8A87C'; lbl.style.color = closed ? '#fff' : '#1A1A2E';
   document.getElementById('archive-btn').textContent = showArchived ? '📋 回到本團' : '📦 查看歷史';
+  const cb = document.getElementById('close-btn');
+  if (cb) { cb.textContent = closed ? '🔓 重開此團' : '🔒 結團'; cb.style.background = closed ? '#6B6B80' : '#D64045'; }
+  const bn = document.getElementById('closed-banner');
+  if (bn) {
+    if (closed) {
+      const c = closedTrips[currentTrip];
+      const when = c && c.at ? new Date(c.at).toLocaleString('zh-TW',{hour12:false}) : '';
+      bn.style.display = 'block';
+      bn.textContent = `🔒 「${currentTrip}」已結團${when ? '（' + when + '）' : ''}。此團已全部付清、處理完畢。`;
+    } else bn.style.display = 'none';
+  }
+  const opt = t => `${isClosed(t)?'🔒 ':''}${esc(t)}${isClosed(t)?'（已結團）':''}`;
   const sel = document.getElementById('trip-select');
   if (sel) {
-    sel.innerHTML = knownTrips.map(t => `<option value="${esc(t)}" ${t===currentTrip?'selected':''}>${esc(t)}</option>`).join('');
+    sel.innerHTML = knownTrips.map(t => `<option value="${esc(t)}" ${t===currentTrip?'selected':''}>${opt(t)}</option>`).join('');
   }
   const revSel = document.getElementById('revenue-select');
   if (revSel) {
+    const keep = revSel.value;
     revSel.innerHTML = '<option value="">-- 選擇團次 --</option>' +
-      knownTrips.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+      knownTrips.map(t => `<option value="${esc(t)}" ${t===keep?'selected':''}>${opt(t)}</option>`).join('');
   }
 }
 function switchTrip() {
@@ -615,12 +654,39 @@ function addTrip() {
   loadOrders();
   alert(`已新增並切換到「${v}」！`);
 }
-function closeTrip() {
+async function closeTrip() {
+  if (isClosed(currentTrip)) {
+    if (prompt('請輸入密碼以重開此團：') !== '888') { alert('密碼錯誤！'); return; }
+    try { await saveClosedTrips(c => { delete c[currentTrip]; }); }
+    catch (e) { alert('重開失敗：' + e.message); return; }
+    renderTripUI();
+    return;
+  }
   const pwd = prompt('請輸入結團密碼：');
   if (pwd !== '888') { alert('密碼錯誤！'); return; }
-  if (!confirm(`確定結束「${currentTrip}」？`)) return;
-  showArchived = true;
-  loadOrders();
+  // 檢查是否全部付清、無待處理
+  await loadPayments(currentTrip);
+  const tripOrders = allOrders.filter(o => (o.trip || currentTrip) === currentTrip);
+  const groups = groupByNickname(tripOrders);
+  const unpaid = [], attention = [];
+  Object.entries(groups).forEach(([name, items]) => {
+    const gf = getGroupFields(items);
+    const total = Math.round(items.reduce((s,o)=>s+itemTotal(o),0) + gf.shipping + gf.extra - gf.discount);
+    const paid = Math.round((paymentsCache[name.toLowerCase()]||[]).reduce((s,p)=>s+Number(p.amount),0));
+    if (total > 0 && paid < total) unpaid.push(`${name}（欠 NT$${total-paid}）`);
+    if (items.some(o => needsAttention(o))) attention.push(name);
+  });
+  let msg = `確定結束「${currentTrip}」？`;
+  if (unpaid.length || attention.length) {
+    msg = `⚠️ 此團尚未完全結清：\n` +
+      (unpaid.length ? `\n未付清：${unpaid.join('、')}` : '') +
+      (attention.length ? `\n待整理/待處理：${attention.join('、')}` : '') +
+      `\n\n仍要結團嗎？`;
+  }
+  if (!confirm(msg)) return;
+  try { await saveClosedTrips(c => { c[currentTrip] = { at: new Date().toISOString(), forced: !!(unpaid.length || attention.length) }; }); }
+  catch (e) { alert('結團失敗：' + e.message); return; }
+  renderTripUI();
   alert(`「${currentTrip}」已結團！需要開新團時請在「新增團次」輸入名稱。`);
 }
 function toggleArchived() {
