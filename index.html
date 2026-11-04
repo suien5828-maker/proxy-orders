@@ -590,15 +590,22 @@ async function loadOrders(silent = false) {
 let closedTrips = {};
 async function loadClosedTrips() {
   try {
-    const { data } = await sb.from('settings').select('value').eq('key','closed_trips').maybeSingle();
-    closedTrips = data && data.value ? JSON.parse(data.value) : {};
-  } catch (e) { /* keep previous */ }
+    const { data, error } = await sb.from('closed_trips').select('trip,closed_at,forced');
+    if (error) throw error;
+    const m = {};
+    (data || []).forEach(r => { m[r.trip] = { at: r.closed_at, forced: r.forced }; });
+    closedTrips = m;
+  } catch (e) { console.warn('closed_trips load failed', e); }
 }
-async function saveClosedTrips(mutator) {
-  await loadClosedTrips(); // re-read to avoid overwriting other staff's changes
-  mutator(closedTrips);
-  const { error } = await sb.from('settings').upsert({ key:'closed_trips', value: JSON.stringify(closedTrips) }, { onConflict:'key' });
-  if (error) throw error;
+async function setTripClosed(trip, closed, forced) {
+  if (closed) {
+    const { error } = await sb.from('closed_trips').upsert({ trip, closed_at: new Date().toISOString(), forced: !!forced }, { onConflict: 'trip' });
+    if (error) throw error;
+  } else {
+    const { error } = await sb.from('closed_trips').delete().eq('trip', trip);
+    if (error) throw error;
+  }
+  await loadClosedTrips();
 }
 function isClosed(t) { return !!closedTrips[t]; }
 function renderTripUI() {
@@ -657,7 +664,7 @@ function addTrip() {
 async function closeTrip() {
   if (isClosed(currentTrip)) {
     if (prompt('請輸入密碼以重開此團：') !== '888') { alert('密碼錯誤！'); return; }
-    try { await saveClosedTrips(c => { delete c[currentTrip]; }); }
+    try { await setTripClosed(currentTrip, false); }
     catch (e) { alert('重開失敗：' + e.message); return; }
     renderTripUI();
     return;
@@ -684,8 +691,8 @@ async function closeTrip() {
       `\n\n仍要結團嗎？`;
   }
   if (!confirm(msg)) return;
-  try { await saveClosedTrips(c => { c[currentTrip] = { at: new Date().toISOString(), forced: !!(unpaid.length || attention.length) }; }); }
-  catch (e) { alert('結團失敗：' + e.message); return; }
+  try { await setTripClosed(currentTrip, true, !!(unpaid.length || attention.length)); }
+  catch (e) { alert('結團失敗：' + e.message + '\\n（請確認已在 Supabase 建立 closed_trips 資料表）'); return; }
   renderTripUI();
   alert(`「${currentTrip}」已結團！需要開新團時請在「新增團次」輸入名稱。`);
 }
